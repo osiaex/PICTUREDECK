@@ -3,7 +3,8 @@
 from flask import Blueprint, request, jsonify
 from ..models import User
 from .. import db  # <--- 修正点：从父包导入db
-
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import jwt_required, get_jwt_identity
 # 蓝图定义保持不变...
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -45,4 +46,24 @@ def login():
     if user.status == 'banned':
         return jsonify({"message": "账户已被封禁"}), 403
 
-    return jsonify({"message": "登录成功", "user": user.to_dict()}), 200
+    # ⭐️ 2. 核心修改：创建Token
+    # create_access_token 的 identity 参数可以放任何能唯一标识用户的东西，用户ID是最好的选择。
+    access_token = create_access_token(identity=str(user.id))
+    
+    # ⭐️ 3. 返回Token给前端
+    return jsonify({
+        "message": "登录成功",
+        "access_token": access_token
+    }), 200
+
+@auth_blueprint.route('/profile', methods=['GET'])
+@jwt_required()  # ⭐️ 核心！加上这个装饰器，这个接口就被保护起来了
+def get_profile():
+    # 我们可以通过 get_jwt_identity() 获取到之前在Token里存入的用户ID
+    current_user_id_str = get_jwt_identity()
+    user = User.query.get(int(current_user_id_str))
+    
+    if not user:
+        return jsonify({"message": "用户不存在"}), 404
+        
+    return jsonify(user.to_dict()), 200

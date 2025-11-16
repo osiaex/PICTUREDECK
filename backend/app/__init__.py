@@ -3,10 +3,11 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from config import Config
-
+from flask_jwt_extended import JWTManager 
 # --- 关键点 1 ---
 # 在这里，我们用 "图纸" (SQLAlchemy) 创建了全局的 "db" 对象实例
 db = SQLAlchemy()
+jwt = JWTManager()
 
 def create_app():
     """创建并配置Flask应用"""
@@ -14,7 +15,7 @@ def create_app():
     
     # 从config.py加载配置
     app.config.from_object(Config)
-    
+    jwt.init_app(app) # ⭐️ 3. 将 JWTManager 与 app 关联
     # 将创建好的 db 对象与 app 关联
     db.init_app(app)
     
