@@ -17,3 +17,9 @@ class Config:
 
     # 可选：打印执行的SQL语句，方便调试
     SQLALCHEMY_ECHO = True
+
+    STABILITY_API_KEY = os.environ.get('STABILITY_API_KEY') or '把你的sk-...密钥粘贴在这里'
+    
+    # 图片保存的根目录，可以根据你的服务器调整
+    # os.path.abspath(os.path.dirname(__name__)) 会获取项目根目录 (backend)
+    OUTPUTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'generated_outputs')

@@ -57,3 +57,36 @@ class Generation(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None
         }
+
+
+class Collection(db.Model):
+    __tablename__ = 'collections'
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    user_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False)
+    parent_id = db.Column(db.BigInteger, db.ForeignKey('collections.id'), nullable=True)
+    name = db.Column(db.String(100), nullable=False)
+    node_type = db.Column(db.Enum('folder', 'file'), nullable=False)
+    # 当node_type为'file'时，此字段指向具体的生成记录
+    generation_id = db.Column(db.BigInteger, db.ForeignKey('generations.id'), nullable=True, unique=True)
+    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
+
+    # 建立用户关系
+    user = db.relationship('User', backref=db.backref('collections', lazy='dynamic'))
+    # 建立生成记录关系
+    generation = db.relationship('Generation', backref=db.backref('collection_node', uselist=False))
+    # 建立父子关系 (自引用)
+    children = db.relationship('Collection', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+
+    def to_dict(self, include_children=False):
+        """将节点信息转换为字典"""
+        data = {
+            "id": self.id,
+            "parent_id": self.parent_id,
+            "name": self.name,
+            "node_type": self.node_type,
+            "generation": self.generation.to_dict() if self.generation else None
+        }
+        if include_children:
+            data['children'] = [child.to_dict(include_children=True) for child in self.children]
+        return data

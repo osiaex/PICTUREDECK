@@ -24,4 +24,6 @@ def create_app():
     app.register_blueprint(auth_blueprint, url_prefix='/api/v1/auth')
     from .routes.generation_routes import generation_blueprint
     app.register_blueprint(generation_blueprint, url_prefix='/api/v1/generations')
+    from .routes.collection_routes import collection_blueprint
+    app.register_blueprint(collection_blueprint, url_prefix='/api/v1/collections')
     return app
