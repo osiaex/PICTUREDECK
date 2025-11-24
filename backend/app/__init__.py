@@ -26,4 +26,7 @@ def create_app():
     app.register_blueprint(generation_blueprint, url_prefix='/api/v1/generations')
     from .routes.collection_routes import collection_blueprint
     app.register_blueprint(collection_blueprint, url_prefix='/api/v1/collections')
+    from .routes.static_routes import static_files_blueprint
+    # 注意：这个蓝图没有 url_prefix，因为它直接定义了 /outputs/... 这样的根路径
+    app.register_blueprint(static_files_blueprint)
     return app
