@@ -305,7 +305,7 @@
       "type": "i2i",
       "prompt": "让上传的照片呈现出油画效果",
       "parameters": {},
-      "result_url": "https://example.com/result/67890.txt"
+      "result_url": "/generated_outputs/67890.txt"
     }
   ]
 }
@@ -316,6 +316,7 @@
 | 参数名 | 类型 | 说明   | 约束                                                                                     |
 | :----- | :--- | :----- | :--------------------------------------------------------------------------------------- |
 | `code` | int  | 状态码 | 200（成功）；400（失败，参数不合规）；401（失败，鉴权失败）；500（失败，服务器内部错误） |
+| `data` | array<obj>  | 生成历史记录的列表 | 记录应该按照时间升序排列，即：时间早的记录靠前，时间晚的记录靠后 |
 
 ### 8. 获取收藏夹接口<span id="获取收藏夹接口"></span>
 
@@ -336,20 +337,20 @@
 ```json
 {
   "code": 200,
-  "message": "成功",
+  "message": "成功获取收藏夹列表",
   "data": [
     {
       "id": 1,
-      "parent_id": "None",
+      "parent_id": null,
       "name": "/",
       "node_type": "folder"
     },
     {
       "id": 2,
-      "parent_id": "1",
+      "parent_id": 1,
       "name": "man.jpg",
       "node_type": "file",
-      "refer_url":"/results/man.jpg"
+      "refer_url":"/generated_outputs/man.jpg"
     }
   ]
 }
@@ -360,11 +361,11 @@
 | 参数名 | 类型 | 说明   | 约束                                                                                     |
 | :----- | :--- | :----- | :--------------------------------------------------------------------------------------- |
 | `code` | int  | 状态码 | 200（成功）；400（失败，参数不合规）；401（失败，鉴权失败）；500（失败，服务器内部错误） |
-| data.id | int  | 节点标识 | 唯一 |
-| data.parent_id | int  | 父节点标识 | 唯一 |
-| data.name | string  | 人类可读的节点名称 |   |
-| data.node_type | string  | 节点类型 | 为"folder"或者"file"  |
-| data.refer_url | string  | 文件的url | 唯一，仅当node_type为"file"时有意义 |
+| `data.id` | int  | 节点标识 | 唯一 |
+| `data.parent_id` | int  | 父节点标识 | 唯一，值为null标识没有父节点 |
+| `data.name` | string  | 人类可读的节点名称 |   |
+| `data.node_type` | string  | 节点类型 | 为"folder"或者"file"  |
+| `data.refer_url` | string  | 文件的url | 唯一，仅当node_type为"file"时有意义 |
 
 ### 9. 新增收藏夹内容接口<span id="新增收藏夹内容接口"></span>
 
@@ -385,7 +386,7 @@
   "parent_id": 1,
   "name": "example.png",
   "node_type": "file",
-  "refer_url":"results/example.png"
+  "refer_url":"/generated_outputs/example.png"
 }
 ```
 
@@ -402,7 +403,7 @@
 ```json
 {
   "code": 200,
-  "message": "成功",
+  "message": "成功创建新收藏内容",
   "data": {
     "id": 32
   }
@@ -446,7 +447,7 @@
 ```json
 {
   "code": 200,
-  "message": "成功",
+  "message": "删除收藏夹内容成功",
   "data": [
     {
       "id": 1,
@@ -580,7 +581,7 @@
   "data": {
     "task_id": "task_10001",
     "status": "completed",
-    "result_url": "https://example.com/results/task_10001.png",
+    "result_url": "/generated_outputs/task_10001.png",
     "created_at": "2025-11-04T17:00:00Z",
     "completed_at": "2025-11-04T17:00:15Z"
   }

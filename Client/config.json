@@ -1,0 +1,9 @@
+{
+    "environment": "offline",
+    "debug": true,
+    "api_base_urls": {
+        "offline": "http://127.0.0.1:8000/api/v1",
+        "staging": "https://127.0.0.1:5000/api/v1",
+        "production": "https://prod-server.com/api/v1"
+    }
+}
