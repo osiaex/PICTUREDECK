@@ -9,6 +9,22 @@ SPECIAL_PREFIXES = {
 }
 class HttpClient(QObject):
     BASE_URL = app_config.get_base_url()
+    """注释:
+              ┌──────────────────────────────┐
+              │      BASE_URL = 主地址        │
+              │  https://api.xxx.com/api/v1  │
+              └──────────────────────────────┘
+                            │
+                ┌───────────┴───────────┐
+        正常接口 endpoint              静态资源 endpoint
+        "user/login"                   "generated_outputs/1.png"
+                │                               │
+                ▼                               ▼
+        正常加前缀（包括 /api/v1）      去掉 /api/v1（图片直链）
+                │                               │
+                ▼                               ▼
+        https://api.xxx.com/api/v1/…     https://api.xxx.com/generated_outputs/…
+    """
 
     def __init__(self):
         super().__init__()

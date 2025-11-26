@@ -31,7 +31,7 @@ PICTUREDECK/
 │   │   │       ├── records.py      # 生成结果记录查询
 │   │   │       ├── collections.py  # （可选）集合管理
 │   │   │       ├── assets.py       # 资源上传/下载
-│   │   │       └── nft.py          # NFT 铸造/查询（新增，最小实现）
+│   │   │       └── **nft.py**          # NFT 铸造/查询（新增，最小实现）
 │   │   ├── core/
 │   │   │   ├── config.py           # 配置：DB/JWT/存储路径/链上配置（provider、私钥、合约地址）
 │   │   │   └── security.py         # JWT、密码哈希
@@ -39,22 +39,22 @@ PICTUREDECK/
 │   │   │   ├── user.py
 │   │   │   ├── generation_task.py
 │   │   │   ├── generated_record.py
-│   │   │   └── nft.py              # 新增：NFT 模型（最小字段）
+│   │   │   └── **nft.py**              # 新增：NFT 模型（最小字段）
 │   │   ├── schemas/                # Pydantic 模型
 │   │   │   ├── user.py
 │   │   │   ├── generation_task.py
 │   │   │   ├── generated_record.py
-│   │   │   └── nft.py              # 新增：NFT 请求/响应模型
+│   │   │   └── **nft.py**              # 新增：NFT 请求/响应模型
 │   │   ├── services/
 │   │   │   ├── generation_service.py # 生成任务（初期同步占位即可）
-│   │   │   └── nft_service.py        # 新增：NFT 铸造服务（占位/链上两种模式）
+│   │   │   └── **nft_service.py**        # 新增：NFT 铸造服务（占位/链上两种模式）
 │   │   └── utils/                   # 可选：统一响应等
 │   └── crud/
 │       ├── base.py
 │       ├── crud_user.py
 │       ├── crud_generation_task.py
 │       ├── crud_generated_record.py
-│       └── crud_nft.py              # 新增：NFT 数据访问
+│       └── **crud_nft.py**              # 新增：NFT 数据访问
 ├── frontend/
 │   └── web/
 │       ├── index.html               # 单页入口（Auth/Generation/Records/NFT 四区块）
@@ -64,7 +64,7 @@ PICTUREDECK/
 │           ├── auth.js              # 注册/登录
 │           ├── generation.js        # 提交任务、查询状态
 │           ├── records.js           # 结果列表与预览
-│           └── nft.js               # 最小 NFT 铸造与查询视图
+│           └── **nft.js**               # 最小 NFT 铸造与查询视图
 ├── storage/
 │   ├── uploads/                     # 用户上传
 │   ├── results/                     # 生成结果（图片/视频）

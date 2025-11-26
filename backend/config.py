@@ -28,3 +28,13 @@ class Config:
     
     # (可选，但推荐) 明确指定 URL 方案
     PREFERRED_URL_SCHEME = "http"
+
+
+    #下面是NFT的内容。定义好NFT的合约地址和客户端ID。
+    THIRDWEB_CLIENT_ID="d7d937da8bccd8f51d1a02ade326f652"
+    
+    THIRDWEB_NFT_CONTRACT="0xcD7B1852A152DCC1199840aC59Fb9fcb5E9bDcA1"
+    #合约地址如上,这是我第一次mint的nft,名为CAT0,有20份.
+
+    THIRDWEB_CLIENT_ID = os.getenv("THIRDWEB_CLIENT_ID", "")
+    THIRDWEB_NFT_CONTRACT = os.getenv("THIRDWEB_NFT_CONTRACT", "")

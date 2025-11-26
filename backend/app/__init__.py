@@ -2,7 +2,7 @@
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from config import Config
+from ..config import Config
 from flask_jwt_extended import JWTManager 
 # --- 关键点 1 ---
 # 在这里，我们用 "图纸" (SQLAlchemy) 创建了全局的 "db" 对象实例
@@ -27,6 +27,8 @@ def create_app():
     from .routes.collection_routes import collection_blueprint
     app.register_blueprint(collection_blueprint, url_prefix='/api/v1/collections')
     from .routes.static_routes import static_files_blueprint
+    
+    
     # 注意：这个蓝图没有 url_prefix，因为它直接定义了 /outputs/... 这样的根路径
     app.register_blueprint(static_files_blueprint)
     return app
