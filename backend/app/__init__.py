@@ -2,7 +2,7 @@
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from ..config import Config
+from config import Config
 from flask_jwt_extended import JWTManager 
 # --- 关键点 1 ---
 # 在这里，我们用 "图纸" (SQLAlchemy) 创建了全局的 "db" 对象实例
