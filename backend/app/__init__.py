@@ -20,8 +20,9 @@ def create_app():
     db.init_app(app)
     
     # 注册蓝图 (我们的API接口)
-    from .routes.auth_routes import auth_blueprint
+    from .routes.auth_routes import auth_blueprint, user_blueprint # ⭐️ 导入 user_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/api/v1/auth')
+    app.register_blueprint(user_blueprint, url_prefix='/api/v1/user') # ⭐️ 注册 user_blueprint
     from .routes.generation_routes import generation_blueprint
     app.register_blueprint(generation_blueprint, url_prefix='/api/v1/generations')
     from .routes.collection_routes import collection_blueprint

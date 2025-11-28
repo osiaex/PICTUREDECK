@@ -47,15 +47,19 @@ class Generation(db.Model):
     user = db.relationship('User', backref=db.backref('generations', lazy=True))
 
     def to_dict(self):
+        params_data = self.parameters or {}
+        review_info = params_data.get('review', {})
         return {
-            "uuid": self.uuid,
-            "user_id": self.user_id,
-            "status": self.status,
-            "generation_type": self.generation_type,
+            "task_id": self.uuid, # 对应新文档的 task_id
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "type": self.generation_type,
             "prompt": self.prompt,
+            "status": self.status,
             "result_url": self.result_url,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+            "completed_at": self.completed_at.isoformat() + "Z" if self.completed_at else None,
+            # 将审核信息也加入返回
+            "review_status": review_info.get('status', 'pending'),
+            "review_message": review_info.get('message', None)
         }
 
 
