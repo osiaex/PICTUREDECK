@@ -18,8 +18,11 @@ def create_app():
     db.init_app(app)
     
     # 注册蓝图
-    from .routes.auth_routes import auth_blueprint, user_blueprint
+    from .routes.auth_routes import auth_blueprint 
     app.register_blueprint(auth_blueprint, url_prefix='/api/v1/auth')
+
+    # 2. User 模块 (改为从新的 user_routes 文件导入)
+    from .routes.user_routes import user_blueprint
     app.register_blueprint(user_blueprint, url_prefix='/api/v1/user')
     
     from .routes.generation_routes import generation_blueprint
