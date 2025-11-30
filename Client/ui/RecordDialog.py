@@ -38,9 +38,8 @@ class RecordDialog(QDialog):
         close_btn.clicked.connect(self.close)
         main_layout.addWidget(close_btn)
 
-        # 根据图片原始尺寸调整窗口大小
-        self.resize(pix.width() + 80, pix.height() + 150)
-
+        # self.resize(pix.width() + 80, pix.height() + 150)
+        self.resize(600, 600)
         # 非模态方式打开
         self.setModal(False)
 

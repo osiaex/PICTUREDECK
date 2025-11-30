@@ -25,7 +25,7 @@ class HttpClient(QObject):
                 ▼                               ▼
         https://api.xxx.com/api/v1/…     https://api.xxx.com/generated_outputs/…
     """
-
+    
     def __init__(self):
         super().__init__()
         self.manager = QNetworkAccessManager()

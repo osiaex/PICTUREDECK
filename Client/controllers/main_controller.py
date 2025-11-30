@@ -53,7 +53,8 @@ class MainController:
         self.register_window = RegisterWindow(switch_to_login=self.success_register_callback)
         original_close_event = self.login_window.closeEvent
         def new_close_event(event):
-            self.register_window.close()
+            if self.register_window:
+                self.register_window.close()
             original_close_event(event)
         self.login_window.closeEvent = new_close_event
         self.register_window.show()
@@ -62,9 +63,18 @@ class MainController:
         self.forget_password_window = ForgotPasswordWindow()
         original_close_event = self.login_window.closeEvent
         def new_close_event(event):
-            self.show_forget_password_window.close()
+            if self.forget_password_window:
+                self.forget_password_window = None
+                self.forget_password_window.close()
+            # self.forget_password_window.close()
             original_close_event(event)
         self.login_window.closeEvent = new_close_event
+
+        forget_password_original_close_event = self.forget_password_window.closeEvent
+        def forget_password_new_close_event(event):
+            self.forget_password_window = None
+            forget_password_original_close_event(event)
+        self.forget_password_window.closeEvent = forget_password_new_close_event
         self.forget_password_window.show()
 
     def show_main(self):

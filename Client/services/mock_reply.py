@@ -132,8 +132,17 @@ class MockReplyManager:
 
     def _mock_response(self, endpoint_url: str, method="POST"):
 
-        if endpoint_url.startswith("/generated_outputs/"):
+        if endpoint_url.startswith("/generated_outputs/") and method=="GET": 
             return self._load_image_payload(endpoint_url)
+        
+        if endpoint_url.startswith("/user/generation_list") and method=="POST":
+            return {
+                "code": 200,
+                "message": "成功删除生成记录",
+                "data": {
+                    "result_url": "/generated_outputs/67890.txt"
+                }
+            }
         
         # 精确匹配
         if endpoint_url in self.mock_data:

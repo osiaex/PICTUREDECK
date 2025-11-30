@@ -171,3 +171,13 @@ class LocalDB:
         query.exec()
 
         return query.value(0) if query.next() else None
+    
+    def delete_record_by_url(self, url: str):
+        """
+        根据 URL 删除对应记录
+        """
+        query = QSqlQuery(self.db)
+        query.prepare("DELETE FROM local_records WHERE url = ?")
+        query.addBindValue(url)
+        if not query.exec():
+            print("Delete error:", query.lastError().text())

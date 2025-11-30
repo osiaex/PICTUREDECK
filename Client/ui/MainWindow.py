@@ -13,7 +13,7 @@ from services.request_service import async_request
 from services.local_store import LocalDB, save_pixmap_from_url
 from services.session import session
 from ui.HistoryPage import DESC_TO_GEN_TYPE, GEN_TYPE_DESC, GenerationType, HistoryPage, RecordWidget
-
+from ui.FavPathSelector import FavPathSelector
 
 class UploadPreview(QWidget):
     imageRemoved = Signal()   # 发射信号，用于通知父组件图片被删除
@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
         self.switch_to_profile = switch_to_profile
         self.logout = logout
         self.setWindowTitle("AIGC 内容生成客户端")
-        self.setMinimumSize(800, 450)
+        self.setMinimumSize(800, 550)
         self.uploaded_image_path = None
         self.generation_list = []  # 生成记录列表数据初始化为空
         self.fav_list = []  # 收藏列表数据初始化为空
@@ -159,6 +159,15 @@ class MainWindow(QMainWindow):
             btn.setChecked(btn == sender)
         self.__update_upload_area_enabled()
 
+    def __on_page_selected(self):
+        sender = self.sender()
+        for btn in (self.history_button, self.favorite_button):
+            btn.setChecked(btn == sender)
+        if sender == self.history_button:
+            self.stack.setCurrentWidget(self.history_page)
+        else:
+            self.stack.setCurrentWidget(self.fav_page)
+
     # ===== 控制上传区可点击性 =====
     def __update_upload_area_enabled(self):
         mode_enum = self.__get_current_type()
@@ -215,6 +224,7 @@ class MainWindow(QMainWindow):
             return
         text = self.text_input.toPlainText().strip()
         if not text:
+            self.text_input.setFocus()
             return
         # 需要图片的生成需要待图片上传完成后再发起生成请求
         if gen_type in (GenerationType.I2I, GenerationType.I2V):
@@ -263,7 +273,7 @@ class MainWindow(QMainWindow):
         response_data = reply.readAll().data().decode("utf-8")
         result = json.loads(response_data)
         if result.get("code") == 200:
-            self.show_info("生成请求已提交，稍后请在生成列表中查看结果")
+            self.show_info("生成请求已提交，稍后请在历史记录中查看结果")
             record_widget = RecordWidget(result.get("data", {}))
             self.history_page.addWidget(record_widget)
             self.start_polling_generation(result.get("data").get("task_id"), record_widget)
@@ -305,6 +315,33 @@ class MainWindow(QMainWindow):
     def __on_log_out(self):
         session.clear_session()
         self.logout()
+
+    def on_image_removed(self):
+        self.uploaded_image_path = None
+        self.upload_label.setText("+\n上传参考图\n支持 JPG/PNG")
+        self.upload_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.upload_label.setStyleSheet("font-size: 14px; color: #666;")
+
+    def __on_record_deleted(self, record_dict):
+        # 当历史记录页面发出记录删除信号时，更新收藏夹中的对应记录
+        record_url = record_dict.get("result_url")
+        if not record_url:
+            return
+        # 从收藏列表中移除对应记录
+        self.fav_list = self.fav_page.get_json_tree()
+        self.fav_list = [fav for fav in self.fav_list if fav.get("refer_url") != record_url]
+        self.fav_page.set_json_tree(self.fav_list)
+
+    def __add_record_from_history_to_fav(self, record_dict):
+        # 当历史记录页面发出添加到收藏夹信号时，更新收藏夹中的对应记录
+        record_url = record_dict.get("result_url")
+        if not record_url:
+            return
+
+        selector = FavPathSelector(self.fav_page.get_json_tree(), parent=self)
+        selected_result = selector.get_result()
+        if selected_result:
+            self.fav_page.add_fav_directly(selected_result[1], selected_result[0], record_dict.get("result_url"))
 
     def __setup_ui(self):
         # 主容器
@@ -389,9 +426,7 @@ class MainWindow(QMainWindow):
 
         # 右：预览图
         self.upload_preview = UploadPreview()
-        self.upload_preview.imageRemoved.connect(
-            lambda: setattr(self, "uploaded_image_path", None)
-        )
+        self.upload_preview.imageRemoved.connect(self.on_image_removed)
 
 
         upload_layout.addWidget(self.upload_area, 1)
@@ -454,10 +489,10 @@ class MainWindow(QMainWindow):
         self.logout_button = QPushButton("退出登录")
         self.favorite_button = QPushButton("收藏夹")
         self.history_button = QPushButton("历史记录")
-        # self.history_button.setEnabled(False)  # 历史记录为当前页，禁用按钮
+
         self.account_button.clicked.connect(self.switch_to_profile)
         self.logout_button.clicked.connect(self.__on_log_out)
-        for btn in (self.account_button, self.logout_button, self.history_button, self.favorite_button):
+        for btn in (self.account_button, self.logout_button):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet("""
                 QPushButton {
@@ -474,21 +509,46 @@ class MainWindow(QMainWindow):
             nav_bar.addWidget(btn)
 
 
+        for btn in (self.history_button, self.favorite_button):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    border: none;
+                    font-size: 14px;
+                    color: #333;
+                }
+                QPushButton:hover {
+                    color: #409EFF;
+                    text-decoration: underline;
+                }
+                QPushButton:checked {
+                    color: #409EFF;
+                    font-weight: bold;
+                    text-decoration: underline;
+                }
+            """)
+            nav_bar.addWidget(btn)
+        self.history_button.setChecked(True)  # 默认选中历史记录
+
+
 
 
         self.history_page = HistoryPage(parent=self)
 
         self.fav_page = FavTreeView(json_data=self.fav_list, parent=self)
-
+        self.history_page.record_deleted.connect(self.__on_record_deleted)
+        self.history_page.add_record_to_fav.connect(self.__add_record_from_history_to_fav)
         self.stack = QStackedWidget()
         self.stack.addWidget(self.history_page)
         self.stack.addWidget(self.fav_page)
         self.stack.setCurrentWidget(self.history_page)
         self.favorite_button.clicked.connect(
-            lambda: self.stack.setCurrentWidget(self.fav_page)
+            self.__on_page_selected
         )
         self.history_button.clicked.connect(
-            lambda: self.stack.setCurrentWidget(self.history_page)
+            self.__on_page_selected
         )
 
         right_layout.addLayout(nav_bar)
