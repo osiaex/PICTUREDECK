@@ -3,75 +3,185 @@
 import json
 import requests
 import os
+import time
 from flask import current_app
 from volcengine.visual.VisualService import VisualService
 
-def generate_image_with_jimeng(prompt, output_filename):
-    """
-    调用即梦 AI API 生成图片，并从返回的URL下载保存。
-    """
-    ak = current_app.config['VOLC_ACCESS_KEY_ID']
-    sk = current_app.config['VOLC_SECRET_ACCESS_KEY']
-    
-    if not ak or not sk:
-        print("错误：未配置火山引擎的 Access Key。")
-        return None
+# --- 1. 填坑用的伪造对象 (保持不变，用于解决 AttributeError) ---
+class ApiInfoStruct:
+    def __init__(self, method, path, query, header=None):
+        self.method = method
+        self.path = path
+        self.url = path
+        self.query = query
+        self.header = header or {}
+        self.body_format = 'json' 
+        self.socket_timeout = 30
+        self.connection_timeout = 30
 
-    # 1. 初始化 VisualService
+# --- 2. 强力解析函数 (新增，解决 TypeError) ---
+def parse_sdk_response(resp):
+    """
+    不管 SDK 返回什么鬼东西 (字典、JSON字符串、字节流)，都强行转成字典
+    """
+    if resp is None:
+        return {}
+    
+    # 如果已经是字典，直接返回
+    if isinstance(resp, dict):
+        return resp
+    
+    # 如果是字节流，解码成字符串
+    if isinstance(resp, bytes):
+        try:
+            resp = resp.decode('utf-8')
+        except:
+            print(f"[SDK Parse] 无法解码字节流: {resp}")
+            return {}
+
+    # 如果是字符串，尝试转换 JSON
+    if isinstance(resp, str):
+        try:
+            return json.loads(resp)
+        except:
+            print(f"[SDK Parse] 响应不是有效的 JSON: {resp}")
+            return {}
+            
+    return {}
+
+# --- 文生图服务 (保持不变) ---
+def generate_image_with_jimeng(prompt, output_filename):
+    ak = current_app.config.get('VOLC_ACCESS_KEY_ID')
+    sk = current_app.config.get('VOLC_SECRET_ACCESS_KEY')
+    if not ak or not sk: return None
     visual_service = VisualService()
     visual_service.set_ak(ak)
     visual_service.set_sk(sk)
-    
-    # 2. 准备 Body 参数
-    form_data = {
-        "req_key": "jimeng_high_aes_general_v21_L",
+    form_data = {"req_key": "jimeng_high_aes_general_v21_L", "prompt": prompt, "return_url": True}
+    try:
+        res = visual_service.cv_process(form_data)
+        if 'data' not in res: return None
+        return download_file(res['data']['image_urls'][0], output_filename)
+    except: return None
+
+# --- 核心逻辑: 视频生成 ---
+
+def generate_video_with_jimeng(prompt, output_filename):
+    """
+    ⭐️ 文生视频：终极容错版
+    """
+    ak = current_app.config.get('VOLC_ACCESS_KEY_ID')
+    sk = current_app.config.get('VOLC_SECRET_ACCESS_KEY')
+    if not ak or not sk:
+        print("[Video] 缺少 AK/SK 配置")
+        return None
+
+    # 1. 初始化
+    video_service = VisualService()
+    video_service.set_ak(ak)
+    video_service.set_sk(sk)
+
+    # 2. 修改配置
+    video_service.service_info.host = 'visual.volcengineapi.com'
+    video_service.service_info.socket_timeout = 30
+    video_service.service_info.connection_timeout = 30
+
+    # 3. 注册 API (骗过 SDK)
+    video_service.api_info['SubmitTask'] = ApiInfoStruct(
+        method='POST', path='/', 
+        query={'Action': 'CVSync2AsyncSubmitTask', 'Version': '2022-08-31'}
+    )
+    video_service.api_info['GetResult'] = ApiInfoStruct(
+        method='POST', path='/', 
+        query={'Action': 'CVSync2AsyncGetResult', 'Version': '2022-08-31'}
+    )
+
+    # 4. 准备参数 (使用文档要求的 key)
+    submit_body = {
+        "req_key": "jimeng_t2v_v30_1080p", 
         "prompt": prompt,
-        "return_url": True,
+        "frames": 121, 
+        "aspect_ratio": "16:9"
     }
 
     try:
-        print(">>> 准备向即梦AI发送请求 (使用 cv_process)...")
+        print(f">>> [Video] 提交任务...")
         
-        # 3. 使用官方推荐的 cv_process 方法
-        res_json = visual_service.cv_process(form_data)
+        # 5. 发送请求
+        raw_resp = video_service.json('SubmitTask', {}, json.dumps(submit_body))
         
-        print("<<< 已收到即梦AI的响应！")
-        print("原始响应内容:", res_json)
+        # ⭐️⭐️⭐️ 强力解析 (防止 string indices 报错) ⭐️⭐️⭐️
+        resp = parse_sdk_response(raw_resp)
+        
+        # 打印出来看看，死也要死得明白
+        # print(f"[Debug] Submit Resp: {resp}")
 
-        # 检查业务错误码 (SDK 可能在失败时直接抛异常，也可能返回错误信息)
-        # 我们先检查 ResponseMetadata，这是 SDK 的标准错误结构
-        if 'ResponseMetadata' in res_json and 'Error' in res_json['ResponseMetadata']:
-            error_info = res_json['ResponseMetadata']['Error']
-            # 火山引擎的业务错误码在 CodeN 字段
-            print(f"即梦 AI API 业务错误: Code: {error_info.get('CodeN')}, Message: {error_info.get('Message')}")
+        # 错误检查
+        if 'ResponseMetadata' in resp and 'Error' in resp['ResponseMetadata']:
+            err = resp['ResponseMetadata']['Error']
+            print(f"[Video] API报错: Code={err.get('Code')}, Message={err.get('Message')}")
             return None
 
-        # 如果没有 SDK 错误，再检查业务数据里的 image_urls
-        image_urls = res_json.get("data", {}).get("image_urls", [])
-        if not image_urls:
-            print("即梦 AI API 成功，但未返回图片URL。")
+        if 'data' not in resp or 'task_id' not in resp['data']:
+            print(f"[Video] 响应异常或解析失败: {resp}")
             return None
+
+        task_id = resp['data']['task_id']
+        print(f">>> [Video] 任务已提交，TaskID: {task_id}")
+
+        # 6. 轮询结果
+        max_retries = 60
+        for i in range(max_retries):
+            time.sleep(5)
             
-        image_url = image_urls[0]
-        print(f"获取到图片URL: {image_url}")
-        
-        # --- 后续的下载和保存逻辑完全不变 ---
-        print(">>> 开始下载图片...")
-        image_response = requests.get(image_url, stream=True, timeout=30)
-        image_response.raise_for_status() 
-        
-        output_dir = current_app.config['OUTPUTS_DIR']
-        os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, output_filename)
-        
-        with open(output_path, 'wb') as f:
-            for chunk in image_response.iter_content(1024):
-                f.write(chunk)
-        
-        print(f"<<< 图片成功保存到: {output_path}")
-        return output_path
+            query_body = {"req_key": "jimeng_t2v_v30_1080p", "task_id": task_id}
+            
+            raw_get_resp = video_service.json('GetResult', {}, json.dumps(query_body))
+            
+            # ⭐️⭐️⭐️ 强力解析 ⭐️⭐️⭐️
+            get_resp = parse_sdk_response(raw_get_resp)
+            
+            data = get_resp.get('data', {})
+            status = data.get('status')
+            
+            if status == 'done':
+                video_url = data.get('video_url')
+                if video_url:
+                    print(f">>> [Video] 生成成功！URL: {video_url}")
+                    return download_file(video_url, output_filename)
+                else:
+                    print(f"[Video] 完成但无URL: {get_resp}")
+                    return None
+            
+            elif status in ['failed', 'not_found', 'expired']:
+                print(f"[Video] 失败状态: {status}")
+                return None
+            
+            print(f"    ... [{i+1}/{max_retries}] 状态: {status}")
+
+        print("[Video] 超时")
+        return None
 
     except Exception as e:
-        # SDK 的异常通常会包含更详细的信息
-        print(f"[SDK或未知错误] 调用即梦 AI API 时发生异常: {e}")
+        # 打印详细堆栈，防止不明不白的错误
+        import traceback
+        traceback.print_exc()
+        return None
+
+def download_file(url, filename):
+    """通用下载"""
+    try:
+        print(f">>> 下载文件: {url}")
+        resp = requests.get(url, stream=True, timeout=120, verify=False)
+        resp.raise_for_status()
+        output_dir = current_app.config['OUTPUTS_DIR']
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, filename)
+        with open(output_path, 'wb') as f:
+            for chunk in resp.iter_content(4096):
+                f.write(chunk)
+        print(f"<<< 已保存: {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"下载失败: {e}")
         return None
