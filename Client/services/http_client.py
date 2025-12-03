@@ -5,7 +5,7 @@ from services.config import app_config
 from services.mock_reply import MockReply, mock_reply_manager
 
 SPECIAL_PREFIXES = {
-    "generated_outputs"
+    "outputs"
 }
 class HttpClient(QObject):
     BASE_URL = app_config.get_base_url()
@@ -55,7 +55,7 @@ class HttpClient(QObject):
         if token:
             request.setRawHeader(b"Authorization", f"Bearer {token}".encode())
 
-        if app_config.get_env() == "offline":
+        if app_config.is_debug():
             # 打印 QNetworkRequest 的信息
             print("[Offline Mode] Request info:")
             print("URL:", request.url().toString())
@@ -67,6 +67,7 @@ class HttpClient(QObject):
             if data is not None and content_type == "application/json":
                 print("Body:", json.dumps(data, ensure_ascii=False))
             print('\n')
+        if app_config.get_env() == "offline":
             # 返回 MockReply
             return mock_reply_manager.get_reply(endpoint_url, method=method)
 

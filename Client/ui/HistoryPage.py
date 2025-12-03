@@ -81,6 +81,12 @@ record: dict
         
         self.setLayout(layout)
 
+    def show_error(self, message: str):
+        QMessageBox.critical(self, "错误", message)
+
+    def show_info(self, message: str):
+        QMessageBox.information(self, "信息", message)
+
     def serach_image_in_local(self, image_url):
         db = LocalDB.instance()
         record = db.get_record_by_url(image_url)
@@ -104,12 +110,14 @@ record: dict
     
     def request_image(self, image_url):
         self.result_url=image_url
+        from urllib.parse import urlparse
+        image_url = urlparse(image_url)
         try:
             # 异步请求图片数据
             async_request(
                 sender=self,
                 method="GET",
-                url=image_url,
+                url=image_url.path,
                 data=None,
                 handle_response=self.__update_image
             )

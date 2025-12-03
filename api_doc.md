@@ -307,7 +307,7 @@
       "type": "i2i",
       "prompt": "让上传的照片呈现出油画效果",
       "parameters": {},
-      "result_url": "/generated_outputs/67890.txt"
+      "result_url": "/outputs/67890.txt"
     }
   ]
 }
@@ -352,7 +352,7 @@
       "parent_id": 1,
       "name": "man.jpg",
       "node_type": "file",
-      "refer_url":"/generated_outputs/man.jpg"
+      "refer_url":"/outputs/man.jpg"
     }
   ]
 }
@@ -388,7 +388,7 @@
   "parent_id": 1,
   "name": "example.png",
   "node_type": "file",
-  "refer_url":"/generated_outputs/example.png"
+  "refer_url":"/outputs/example.png"
 }
 ```
 
@@ -579,7 +579,7 @@
   "data": {
     "task_id": "task_10001",
     "status": "completed",
-    "result_url": "/generated_outputs/task_10001.png",
+    "result_url": "/outputs/task_10001.png",
     "created_at": "2025-11-04T17:00:00Z",
     "completed_at": "2025-11-04T17:00:15Z"
   }
@@ -625,7 +625,7 @@
 **请求体**:
 ```json
 {
-  "result_url": "/generated_outputs/67890.txt",
+  "result_url": "/outputs/67890.txt",
 }
 ```
 
@@ -642,7 +642,7 @@
   "code": 200,
   "message": "生成记录内容成功",
   "data":{
-    "result_url": "/generated_outputs/67890.txt"
+    "result_url": "/outputs/67890.txt"
   }
 }
 ```

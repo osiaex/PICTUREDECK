@@ -85,8 +85,21 @@ class MainController:
         self.main_window = MainWindow(switch_to_profile=self.show_profile, logout=self.show_login)
         self.main_window.show()
 
-    def show_profile(self):
+    def show_profile(self):   
         self.profile_window = ProfileWindow()
+        original_profile_close_event = self.profile_window.closeEvent     
+        def profile_new_close_event(event):
+            self.profile_window = None
+            original_profile_close_event(event)
+        self.profile_window.closeEvent = profile_new_close_event
+
+        original_main_close_event = self.main_window.closeEvent
+        def main_new_close_event(event):
+            if self.profile_window:
+                self.profile_window.close()
+            original_main_close_event(event)
+        self.main_window.closeEvent = main_new_close_event
+        
         self.profile_window.show()
 
     def run(self):

@@ -54,7 +54,7 @@ class ProfileWindow(QWidget):
             sender=self,
             method="POST",
             url="/user/reset-email",
-            data={"email": new_email},
+            data={"new_email": new_email},
             handle_response=self.__handle_update_email_response
         )
 
