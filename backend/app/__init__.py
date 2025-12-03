@@ -26,7 +26,7 @@ def create_app():
     app.register_blueprint(user_blueprint, url_prefix='/api/v1/user')
     
     from .routes.generation_routes import generation_blueprint
-    app.register_blueprint(generation_blueprint, url_prefix='/api/v1/generations')
+    app.register_blueprint(generation_blueprint, url_prefix='/api/v1/generation')
     
     # ⭐️ 关键修改：把这里的 url_prefix 改成了 /api/v1/user
     # 这样你的接口地址就是 /api/v1/user/favorite_list，完全符合文档
