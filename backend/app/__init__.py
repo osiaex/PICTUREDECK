@@ -4,9 +4,11 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from config import Config
 from flask_jwt_extended import JWTManager 
+from flask_mail import Mail
 
 db = SQLAlchemy()
 jwt = JWTManager()
+mail = Mail()
 
 def create_app():
     """创建并配置Flask应用"""
@@ -16,6 +18,7 @@ def create_app():
     app.config.from_object(Config)
     jwt.init_app(app)
     db.init_app(app)
+    mail.init_app(app)
     
     # 注册蓝图
     from .routes.auth_routes import auth_blueprint 

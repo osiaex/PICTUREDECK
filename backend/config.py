@@ -38,3 +38,12 @@ class Config:
 
     THIRDWEB_CLIENT_ID = os.getenv("THIRDWEB_CLIENT_ID", "")
     THIRDWEB_NFT_CONTRACT = os.getenv("THIRDWEB_NFT_CONTRACT", "")
+
+
+    # ⭐️⭐️⭐️ 新增邮件配置 (以QQ邮箱为例) ⭐️⭐️⭐️
+    MAIL_SERVER = 'smtp.qq.com'          # QQ邮箱服务器
+    MAIL_PORT = 465                      # SSL端口
+    MAIL_USE_SSL = True                  # 开启SSL
+    MAIL_USERNAME = '1402175551@qq.com'     # 发送方邮箱
+    MAIL_PASSWORD = 'hukxgvcnjaobghad'       # ⚠️ 注意：这里填SMTP授权码，不是QQ密码！
+    MAIL_DEFAULT_SENDER = '1402175551@qq.com' # 默认发送者
