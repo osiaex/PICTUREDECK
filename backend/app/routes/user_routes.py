@@ -1,5 +1,6 @@
 # app/routes/user_routes.py
 
+from typing import Collection
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import User, Generation
@@ -75,4 +76,44 @@ def get_generation_list():
         return api_response(code=200, message="成功", data=data_list)
     except Exception as e:
         print(f"Fetch list error: {e}")
+        return api_response(code=500, message="服务器内部错误")
+
+@user_blueprint.route('/generation_list', methods=['POST'])
+@jwt_required()
+def delete_generation_record():
+    """
+    接口 15: 删除生成记录
+    注意：文档要求是 POST 方法，且通过 result_url 定位
+    """
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+
+    if not data or 'result_url' not in data:
+        return api_response(code=400, message="缺少 result_url 参数")
+
+    result_url = data['result_url']
+
+    # 查找记录
+    gen_record = Generation.query.filter_by(result_url=result_url, user_id=current_user_id).first()
+
+    if not gen_record:
+        # 为了幂等性，找不到也可以算成功，或者返回 404，这里按文档风格返回 400 或忽略
+        return api_response(code=400, message="未找到对应的生成记录")
+
+    try:
+        # 1. 删除关联的收藏夹条目 (如果有)
+        # 你的 Collection 模型有 generation_id 外键，如果是级联删除可以省去这一步
+        # 但显式删除更安全
+        Collection.query.filter_by(generation_id=gen_record.id).delete()
+
+        # 2. 删除生成记录本身
+        db.session.delete(gen_record)
+        
+        # 注意：这里我们只删除了数据库记录，物理文件 (gen_record.physical_path) 通常保留或由定期脚本清理
+        
+        db.session.commit()
+        return api_response(code=200, message="生成记录删除成功", data={"result_url": result_url})
+    
+    except Exception as e:
+        db.session.rollback()
         return api_response(code=500, message="服务器内部错误")

@@ -20,7 +20,6 @@ class Config:
 
     # 即梦 AI (火山引擎) 的密钥
     
-    
     # 图片保存的根目录
     OUTPUTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'generated_outputs')
 

@@ -38,5 +38,9 @@ def create_app():
     
     from .routes.static_routes import static_files_blueprint
     app.register_blueprint(static_files_blueprint)
+
+    # ⭐️⭐️⭐️ 新增：注册 upload 蓝图 ⭐️⭐️⭐️
+    from .routes.upload_routes import upload_blueprint
+    app.register_blueprint(upload_blueprint, url_prefix='/api/v1/upload')
     
     return app

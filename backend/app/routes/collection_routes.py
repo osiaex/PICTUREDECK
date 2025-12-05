@@ -210,3 +210,114 @@ def delete_favorite_item(collection_id):
         db.session.rollback()
         print(f"删除失败: {e}")
         return api_response(code=500, message="服务器内部错误")
+
+@collection_blueprint.route('/favorite_list/batch', methods=['POST'])
+@jwt_required()
+def batch_add_favorite_items():
+    """
+    接口 16: 批量新增收藏夹内容
+    难点：处理 temp_id 和 parent_temp_id 的依赖关系
+    """
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    if not data or 'items' not in data:
+        return api_response(code=400, message="参数 items 缺失")
+    
+    items = data['items'] # 这是一个列表
+    if not items:
+        return api_response(code=200, message="没有需要创建的项", data={"mapping": {}})
+
+    # 临时ID 到 真实数据库ID 的映射
+    # 格式: { 1: 32, 2: 33 }
+    temp_id_map = {} 
+    
+    # 待处理队列 (为了防止无限循环，通常限制最大轮数，这里简化处理)
+    pending_items = items[:] 
+    
+    # 用于记录本轮是否有进展，防止死循环（比如父节点不存在）
+    processed_count = 0
+    
+    # 最多循环 len(items) 次，防止死锁
+    max_loops = len(items) + 2 
+    loop_counter = 0
+
+    while pending_items and loop_counter < max_loops:
+        loop_counter += 1
+        next_round_items = []
+        progress_made = False
+
+        for item in pending_items:
+            temp_id = item.get('temp_id')
+            parent_id = item.get('parent_id')           # 真实父ID
+            parent_temp_id = item.get('parent_temp_id') # 临时父ID
+            name = item.get('name')
+            node_type = item.get('node_type')
+            refer_url = item.get('refer_url')
+
+            real_parent_id = None
+
+            # 情况A: 指定了真实的 parent_id (挂在已存在的文件夹下)
+            if parent_id is not None:
+                real_parent_id = parent_id
+            
+            # 情况B: 指定了 parent_temp_id (挂在本次批量创建的新文件夹下)
+            elif parent_temp_id is not None:
+                if parent_temp_id in temp_id_map:
+                    real_parent_id = temp_id_map[parent_temp_id]
+                else:
+                    # 父节点还没创建，留到下一轮
+                    next_round_items.append(item)
+                    continue
+            
+            # 情况C: 根节点 (既没 parent_id 也没 parent_temp_id)
+            else:
+                real_parent_id = None
+
+            # --- 执行插入 ---
+            generation_id = None
+            if node_type == 'file' and refer_url:
+                # 尝试查找关联的 generation
+                gen = Generation.query.filter_by(result_url=refer_url, user_id=current_user_id).first()
+                if gen:
+                    generation_id = gen.id
+
+            try:
+                new_node = Collection(
+                    user_id=current_user_id,
+                    parent_id=real_parent_id,
+                    name=name,
+                    node_type=node_type,
+                    generation_id=generation_id
+                )
+                db.session.add(new_node)
+                
+                # 必须 flush 以获取 id，但先不 commit 以保持事务原子性
+                db.session.flush() 
+                
+                # 记录映射关系
+                if temp_id is not None:
+                    temp_id_map[temp_id] = new_node.id
+                
+                progress_made = True
+                
+            except Exception as e:
+                print(f"Batch Create Error Item {temp_id}: {e}")
+                db.session.rollback()
+                return api_response(code=500, message="批量创建内部错误")
+
+        pending_items = next_round_items
+        
+        if not progress_made and pending_items:
+            # 如果还有剩余项，但这一轮没有任何进展，说明存在无法解析的依赖（比如parent_temp_id指向不存在的ID）
+            db.session.rollback()
+            return api_response(code=400, message="批量创建失败：存在无法解析的父子依赖关系")
+
+    try:
+        db.session.commit()
+        # 将 key 转为字符串返回，保证 JSON 兼容性
+        str_map = {str(k): v for k, v in temp_id_map.items()}
+        return api_response(code=200, message="批量创建成功", data={"mapping": str_map})
+    except Exception as e:
+        db.session.rollback()
+        return api_response(code=500, message="数据库提交失败")

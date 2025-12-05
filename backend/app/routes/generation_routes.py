@@ -122,3 +122,6 @@ def get_generation_status(taskId):
         return api_response(code=403, message="无权访问")
         
     return api_response(code=200, message="任务状态获取成功", data=generation.to_dict())
+
+
+
