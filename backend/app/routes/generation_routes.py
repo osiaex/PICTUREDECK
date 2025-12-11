@@ -159,5 +159,41 @@ def get_generation_status(taskId):
         return api_response(code=404, message="任务不存在")
     if generation.user_id != current_user_id:
         return api_response(code=403, message="无权访问")
+    
+    # 获取基本数据
+    data = generation.to_dict()
+    
+    # --- ⭐️ 核心修改开始：根据审核状态动态调整返回的 code 和 message ---
+    
+    # 默认状态
+    response_code = 200
+    response_msg = "任务状态获取成功"
+    
+    # 如果任务失败了，我们需要检查是因为什么失败
+    if generation.status == 'failed':
+        params = generation.parameters or {}
+        review = params.get('review', {})
         
-    return api_response(code=200, message="任务状态获取成功", data=generation.to_dict())
+        # 1. 尝试获取数据库里存的第三方 api_code (例如 20001)
+        stored_api_code = review.get('api_code')
+        
+        # 2. 尝试获取具体的错误信息 (例如 "涉及敏感词")
+        stored_msg = review.get('message')
+        
+        # 3. 决定返回给前端的 code
+        if stored_api_code and stored_api_code != 10000:
+            # 如果有第三方的错误码，直接透传给前端
+            response_code = stored_api_code 
+        else:
+            # 如果没有第三方码，但任务失败了，给一个通用的错误码 (如 400 或 -1)
+            response_code = 400 
+            
+        # 4. 决定返回给前端的 message
+        if stored_msg:
+            response_msg = stored_msg
+        else:
+            response_msg = "生成失败，请检查输入"
+
+    # --- 核心修改结束 ---
+
+    return api_response(code=response_code, message=response_msg, data=data)
