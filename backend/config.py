@@ -19,7 +19,8 @@ class Config:
     SQLALCHEMY_ECHO = True
 
     # 即梦 AI (火山引擎) 的密钥
-    
+    VOLC_ACCESS_KEY_ID = "AKLTZGM1MTMxY2Q5ODg2NDFkMWE3ODI2MGYwODQ2NmUwNDQ"
+    VOLC_SECRET_ACCESS_KEY = "TUdZMk56RTJORFZrT1RNd05ETTVZams0WXpFNVlqUmtaREZrWXpFNU16WQ=="
     # 图片保存的根目录
     OUTPUTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'generated_outputs')
 
