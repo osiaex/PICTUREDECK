@@ -24,9 +24,6 @@ def find_file_path_by_id(file_id):
     return None
 
 def process_generation_task(generation_id, ref_image_id=None):
-    """
-    后台任务：执行生成
-    """
     from app import create_app
     app = create_app()
     with app.app_context():
@@ -35,52 +32,78 @@ def process_generation_task(generation_id, ref_image_id=None):
 
         prompt = generation.prompt
         gen_type = generation.generation_type
-        
-        # 1. 解析参考图路径
         ref_image_path = find_file_path_by_id(ref_image_id)
-        if ref_image_path:
-            print(f"任务 {generation_id} 使用参考图: {ref_image_path}")
         
         ext = 'mp4' if gen_type in ['t2v', 'i2v'] else 'jpg'
         output_filename = f"{generation.uuid}.{ext}"
         
-        print(f"开始处理任务 {generation_id} [{gen_type}]: {prompt}")
+        print(f"开始处理任务 {generation_id} [{gen_type}]")
 
         saved_path = None
-        
-        # ⭐️⭐️⭐️ 核心修改在这里：把 i2i 和 i2v 加入判断逻辑 ⭐️⭐️⭐️
-        if gen_type in ['t2i', 'i2i']:
-            # 文生图 和 图生图 都走这里
-            saved_path = generate_image_with_jimeng(prompt, output_filename, ref_image_path)
-            
-        elif gen_type in ['t2v', 'i2v']:
-            # 文生视频 和 图生视频 都走这里
-            saved_path = generate_video_with_jimeng(prompt, output_filename, ref_image_path)
-            
-        else:
-            # 你的报错就是因为代码走到了这里
-            print(f"未实现的生成类型: {gen_type}")
+        api_response_data = {} # 新增：用于存 API 原始返回
 
-        # --- 后续状态更新 ---
-        current_params = generation.parameters or {}
+        try:
+            # ⭐️ 核心修改：接收两个返回值 (路径, 原始JSON)
+            if gen_type in ['t2i', 'i2i']:
+                saved_path, api_response_data = generate_image_with_jimeng(prompt, output_filename, ref_image_path)
+            elif gen_type in ['t2v', 'i2v']:
+                saved_path, api_response_data = generate_video_with_jimeng(prompt, output_filename, ref_image_path)
+            else:
+                api_response_data = {"message": f"Unknown type {gen_type}"}
+
+        except Exception as e:
+            print(f"Task Error: {e}")
+            api_response_data = {"message": str(e)}
+
+        # --- 解析 Review 信息 (完全匹配前端给你的 JSON 结构) ---
         
-        if saved_path:
-            generation.status = 'completed'
+        # 1. 提取 Code (10000 是成功)
+        code = api_response_data.get('code', -1)
+        
+        # 2. 提取 Message
+        # 优先看 data.algorithm_base_resp.status_message (算法层的详细信息)
+        # 其次看外层的 message
+        msg = api_response_data.get('message', 'Unknown Error')
+        if 'data' in api_response_data and isinstance(api_response_data['data'], dict):
+            algo_resp = api_response_data['data'].get('algorithm_base_resp')
+            if algo_resp and 'status_message' in algo_resp:
+                msg = algo_resp['status_message']
+
+        # 3. 决定 Status
+        # 只有当路径存在 且 API code 为 10000 时，才算 approved
+        if saved_path and code == 10000:
+            review_status = "approved"
+            final_status = 'completed'
             generation.result_url = url_for('static_files.get_output_file', filename=output_filename, _external=True)
             generation.physical_path = saved_path
-            msg = "Success"
         else:
-            generation.status = 'failed'
-            msg = "Failed"
-            
+            review_status = "rejected"
+            final_status = 'failed'
+            # 如果失败了，尽量让 msg 更有意义
+            if msg == "Success": msg = "Generation failed despite API success code"
+
+        # --- 更新数据库 ---
+        generation.status = final_status
+        current_params = generation.parameters or {}
+        
+        # 构造前端想要的 review 对象
         current_params['review'] = {
-            "status": "approved" if saved_path else "rejected",
-            "message": msg
+            "status": review_status,
+            "message": msg,
+            "api_code": code  # 把 code 也存进去，方便前端调试
         }
+        
+        # 可选：如果 API 返回了优化的 Prompt，也可以存下来
+        if 'data' in api_response_data and isinstance(api_response_data['data'], dict):
+             llm_result = api_response_data['data'].get('llm_result')
+             if llm_result:
+                 current_params['optimized_prompt'] = llm_result
+
         generation.parameters = current_params
         generation.completed_at = db.func.current_timestamp()
         db.session.commit()
-        print(f"任务 {generation_id} 结束，状态: {generation.status}")
+        
+        print(f"任务结束: {final_status}, Review: {review_status}, Msg: {msg}")
 
 
 @generation_blueprint.route('', methods=['POST'])
@@ -136,5 +159,41 @@ def get_generation_status(taskId):
         return api_response(code=404, message="任务不存在")
     if generation.user_id != current_user_id:
         return api_response(code=403, message="无权访问")
+    
+    # 获取基本数据
+    data = generation.to_dict()
+    
+    # --- ⭐️ 核心修改开始：根据审核状态动态调整返回的 code 和 message ---
+    
+    # 默认状态
+    response_code = 200
+    response_msg = "任务状态获取成功"
+    
+    # 如果任务失败了，我们需要检查是因为什么失败
+    if generation.status == 'failed':
+        params = generation.parameters or {}
+        review = params.get('review', {})
         
-    return api_response(code=200, message="任务状态获取成功", data=generation.to_dict())
+        # 1. 尝试获取数据库里存的第三方 api_code (例如 20001)
+        stored_api_code = review.get('api_code')
+        
+        # 2. 尝试获取具体的错误信息 (例如 "涉及敏感词")
+        stored_msg = review.get('message')
+        
+        # 3. 决定返回给前端的 code
+        if stored_api_code and stored_api_code != 10000:
+            # 如果有第三方的错误码，直接透传给前端
+            response_code = stored_api_code 
+        else:
+            # 如果没有第三方码，但任务失败了，给一个通用的错误码 (如 400 或 -1)
+            response_code = 400 
+            
+        # 4. 决定返回给前端的 message
+        if stored_msg:
+            response_msg = stored_msg
+        else:
+            response_msg = "生成失败，请检查输入"
+
+    # --- 核心修改结束 ---
+
+    return api_response(code=response_code, message=response_msg, data=data)

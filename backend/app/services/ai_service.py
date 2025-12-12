@@ -43,12 +43,11 @@ def encode_image_to_base64(file_path):
         print(f"[Base64] 编码失败: {e}")
         return None
 
-# --- 4. 文生图 / 图生图服务 (已修复参数缺失问题) ---
-# ⚠️ 修复点：添加了 ref_image_path=None 参数
+# --- 4. 文生图 / 图生图服务 ---
 def generate_image_with_jimeng(prompt, output_filename, ref_image_path=None):
     ak = current_app.config.get('VOLC_ACCESS_KEY_ID')
     sk = current_app.config.get('VOLC_SECRET_ACCESS_KEY')
-    if not ak or not sk: return None
+    if not ak or not sk: return None, {"message": "AK/SK missing"}
     
     visual_service = VisualService()
     visual_service.set_ak(ak)
@@ -56,7 +55,6 @@ def generate_image_with_jimeng(prompt, output_filename, ref_image_path=None):
     
     form_data = {"req_key": "jimeng_high_aes_general_v21_L", "prompt": prompt, "return_url": True}
     
-    # 逻辑：如果有参考图，处理 i2i 逻辑
     if ref_image_path:
         print(f">>> [i2i] 正在处理参考图: {ref_image_path}")
         base64_str = encode_image_to_base64(ref_image_path)
@@ -68,20 +66,21 @@ def generate_image_with_jimeng(prompt, output_filename, ref_image_path=None):
 
     try:
         res = visual_service.cv_process(form_data)
-        if 'data' not in res: return None
-        return download_file(res['data']['image_urls'][0], output_filename)
+        if 'data' not in res: 
+            return None, res 
+        saved_path = download_file(res['data']['image_urls'][0], output_filename)
+        return saved_path, res
     except Exception as e:
-        print(f"Image Gen Error: {e}")
-        return None
+        return None, {"message": str(e), "code": -1}
 
-# --- 5. 文生视频 / 图生视频服务 (已修复参数缺失 + req_key一致性问题) ---
-# ⚠️ 修复点：添加了 ref_image_path=None 参数
+# --- 5. 文生视频 / 图生视频服务 ---
 def generate_video_with_jimeng(prompt, output_filename, ref_image_path=None):
     ak = current_app.config.get('VOLC_ACCESS_KEY_ID')
     sk = current_app.config.get('VOLC_SECRET_ACCESS_KEY')
     if not ak or not sk:
         print("❌ [Error] AK 或 SK 未配置！")
-        return None
+        # 修复点 1：必须返回两个值，否则调用端会报错
+        return None, {"message": "AK/SK missing"}
 
     video_service = VisualService()
     video_service.set_ak(ak)
@@ -92,7 +91,6 @@ def generate_video_with_jimeng(prompt, output_filename, ref_image_path=None):
     video_service.api_info['SubmitTask'] = ApiInfoStruct('POST', '/', {'Action': 'CVSync2AsyncSubmitTask', 'Version': '2022-08-31'})
     video_service.api_info['GetResult'] = ApiInfoStruct('POST', '/', {'Action': 'CVSync2AsyncGetResult', 'Version': '2022-08-31'})
 
-    # 1. 默认参数 (文生视频)
     submit_body = {
         "req_key": "jimeng_t2v_v30_1080p", 
         "prompt": prompt,
@@ -100,20 +98,12 @@ def generate_video_with_jimeng(prompt, output_filename, ref_image_path=None):
         "aspect_ratio": "16:9"
     }
 
-    # 2. 如果有参考图 (图生视频)，切换 Key 和 参数
     if ref_image_path:
         print(f">>> [i2v] 正在处理参考图: {ref_image_path}")
         base64_str = encode_image_to_base64(ref_image_path)
         if base64_str:
-            # ⭐️ 核心修正：使用文档指定的最新 Key
             submit_body["req_key"] = "jimeng_i2v_first_v30_1080"
-            
-            # ⭐️ 核心修正：使用 binary_data_base64 数组格式
             submit_body["binary_data_base64"] = [base64_str]
-            
-            # ⭐️ 核心修正：清理文生视频特有的参数 (避免参数冲突)
-            # 根据文档，i2v 似乎不需要 aspect_ratio，我们这里为了安全保留 frames 和 prompt
-            # 如果报错参数多余，可以尝试 del submit_body["aspect_ratio"]
         else:
             print(">>> [i2v] 参考图编码失败，降级为文生视频")
 
@@ -124,34 +114,43 @@ def generate_video_with_jimeng(prompt, output_filename, ref_image_path=None):
 
         if 'data' not in resp or 'task_id' not in resp['data']:
             print(f"❌ [Error] 视频任务提交失败: {resp}")
-            return None
+            return None, resp
 
         task_id = resp['data']['task_id']
         print(f">>> [Video] 任务ID: {task_id}")
 
+        # 修复点 2：在循环开始前初始化 last_resp
+        last_resp = {} 
+
         for i in range(60):
             time.sleep(5)
-            # ⭐️ 查询时使用相同的 req_key
             query_body = {"req_key": submit_body["req_key"], "task_id": task_id}
             
             raw_get_resp = video_service.json('GetResult', {}, json.dumps(query_body))
             get_resp = parse_sdk_response(raw_get_resp)
+            
+            # 修复点 3：每次循环都更新 last_resp，这样超时退出后该变量才有值
+            last_resp = get_resp 
             
             data = get_resp.get('data', {})
             status = data.get('status')
             
             if status == 'done':
                 video_url = data.get('video_url')
-                return download_file(video_url, output_filename)
+                saved_path = download_file(video_url, output_filename)
+                return saved_path, get_resp
             elif status in ['failed', 'not_found', 'expired']:
                 print(f"❌ [Error] 视频生成失败: {status}, Msg: {get_resp.get('message')}")
-                return None
+                return None, get_resp
             print(f"    ... [{i+1}/60] {status}")
 
-        return None
+        # 超时退出，此时 last_resp 里面存的是最后一次查询的结果
+        return None, {"message": "Timeout polling video", "last_response": last_resp}
+
     except Exception as e:
         print(f"❌ [Error] generate_video 异常: {e}")
-        return None
+        # 修复点 4：异常时也必须返回两个值
+        return None, {"message": str(e), "code": -1}
 
 # --- 下载函数 (保持不变) ---
 def download_file(url, filename):
