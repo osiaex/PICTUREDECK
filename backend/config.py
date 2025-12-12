@@ -24,6 +24,9 @@ class Config:
     # 图片保存的根目录
     OUTPUTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'generated_outputs')
 
+    # 参考图片保存目录
+    REF_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'reference_images')
+    
     SERVER_NAME = "127.0.0.1:5000"
     
     # (可选，但推荐) 明确指定 URL 方案

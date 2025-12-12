@@ -15,7 +15,7 @@ generation_blueprint = Blueprint('generation', __name__)
 def find_file_path_by_id(file_id):
     """根据 file_id (如 ref_1234) 在输出目录找到真实文件路径"""
     if not file_id: return None
-    output_dir = current_app.config['OUTPUTS_DIR']
+    output_dir = current_app.config['REF_DIR']
     
     if os.path.exists(output_dir):
         for fname in os.listdir(output_dir):

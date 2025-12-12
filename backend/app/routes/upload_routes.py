@@ -44,8 +44,8 @@ def upload_image():
         file_id = f"ref_{random_id}"
         new_filename = f"{file_id}.{ext}"
         
-        # 获取保存目录 (复用 config.py 里的 OUTPUTS_DIR)
-        save_dir = current_app.config['OUTPUTS_DIR']
+        # 获取保存目录 (复用 config.py 里的 REF_DIR)
+        save_dir = current_app.config['REF_DIR']
         
         # 确保目录存在
         if not os.path.exists(save_dir):
