@@ -1,9 +1,9 @@
 # app/routes/user_routes.py
 
-from typing import Collection
+# from typing import Collection
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models import User, Generation
+from ..models import User, Generation, Collection
 from .. import db
 from ..utils.helpers import api_response
 

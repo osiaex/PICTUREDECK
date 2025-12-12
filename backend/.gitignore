@@ -92,3 +92,4 @@ debug*
 *.db
 收藏.json
 generated_outputs/
+config-本地版.py
