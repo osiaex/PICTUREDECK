@@ -6,8 +6,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon, QPixmap
 from PySide6.QtCore import Qt, QModelIndex
+from services.nft import mint_nft
 from ui.RecordDialog import RecordDialog
 from ui.HistoryPage import RecordWidget
+from ui.MouseBlockOverlay import MouseBlockOverlay
 from services.request_service import async_request
 from services.config import app_config
 # =====================================================
@@ -477,6 +479,13 @@ class FavTreeView(QWidget):
             handle_response=lambda reply: self.__handle_create_new_node_response(reply, new_node=new_node)
         )
         # todo 在等待期间为用户提供视觉反馈
+        if not hasattr(self, 'overlay'):
+            self.overlay = MouseBlockOverlay(self)
+        self.overlay.setActive(True, "请稍候...")
+
+    def enable_ui(self):
+        if hasattr(self, 'overlay'):
+            self.overlay.setActive(False)
 
 
     # =====================================================
@@ -535,9 +544,20 @@ class FavTreeView(QWidget):
             menu.addAction("删除（递归）",
                            lambda: self.delete_node_recursive(node_id))
         else:
-            # 文件节点：仅删除
+            record = self.url_to_available_fav_items.get(node.get("refer_url"))
+            if not record.is_video_type() and not record.is_on_chain:
+                menu.addAction("上链为NFT",
+                    lambda: mint_nft(self, record)
+                )
+            
+            if not record.is_video_type() and record.is_on_chain and not record.is_transferred:
+                menu.addAction("转让NFT",
+                    lambda: self.show_info("转让功能正在开发中，敬请期待！")
+                )
             menu.addAction("删除收藏",
                            lambda: self.delete_node_recursive(node_id))
+            
+            
 
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -562,7 +582,6 @@ class FavTreeView(QWidget):
         self.add_fav_directly(folder_id, selected["alias"], selected["url"])
 
     def add_fav_directly(self, folder_id, alias, url):
-        # todo 检查重名
         children = self.get_direct_children(folder_id)
         for child in children:
             if child["name"] == alias and child["node_type"] == "file":
@@ -635,6 +654,9 @@ class FavTreeView(QWidget):
             data=None,
             handle_response=lambda reply: self.__handle_delete_node_response(reply, node_id)
         )
+        if not hasattr(self, 'overlay'):
+            self.overlay = MouseBlockOverlay(self)
+        self.overlay.setActive(True, "请稍候...")
 
 
     def collect_descendants(self, node_id):

@@ -1,94 +1,157 @@
-from pathlib import Path
-import requests
-from fastapi import HTTPException
+from functools import partial
+import subprocess
+import json
+import os
+import time
 
-from backend.app.core.config import THIRDWEB_CLIENT_ID, THIRDWEB_NFT_CONTRACT
+from sqlalchemy import exc
 
-THIRDWEB_API_URL = "https://api.thirdweb.com/storage/upload"
+import asyncio
+import subprocess
+import uuid
+from collections import defaultdict
 
 class NFTService:
+    
+    #函数：检查env中对应钱包的balance（资产）(必须保证已经设置好了private key)
+    def check_balance(self, address: str):
+        return self.call_js_script("check_balance.mjs", [address])
+
+    #函数：查看合同的metadata(必须保证已经设置好了secret key，需要手动在/js/.env中设置合同的THIRDWEB_NFT_CONTRACT)
+    def get_nft_metadata(self, token_id: str):
+        return self.call_js_script("contract_metadata.mjs", [token_id])
+
+    #函数：铸造 NFT(必须保证已经设置好了private key、secret key)
+    def mint_nft(self, name, description, image_path):
+        return self.call_js_script("mint_nft.mjs", [name, description, image_path])
+
+    #函数：转账 NFT(必须保证已经设置好了private key、secret key)
+    def transfer_nft(self, token_id, to_address, amount=1):
+        return self.call_js_script("transfer_nft.mjs", [token_id, to_address, amount])  
+
+
+    ####################实现代码######################
+    
+    #NFT模块必需的密钥设置：privatekey（用户的钱包密钥）和secretkey（后端加速密钥）
+    def update_env(self, private_key: str, secret_key: str):
+               # 读取现有文件
+        if os.path.exists(self.env_path):
+            with open(self.env_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+        new_lines = []
+        found = False
+        
+        # 逐行检查，如果找到 key 就替换
+        for line in lines:
+            if line.strip().startswith(f"{key}="):
+                new_lines.append(f"{key}={value}\n")
+                found = True
+            else:
+                new_lines.append(line)
+        
+        # 如果没找到，就追加到最后
+        if not found:
+            # 确保前一行有换行符
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines.append('\n')
+            new_lines.append(f"{key}={value}\n")
+
+        # 写回文件
+        with open(self.env_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        print(f"Updated .env: {key} updated successfully.")
+
+
     def __init__(self):
-        if not THIRDWEB_CLIENT_ID:
-            raise RuntimeError("THIRDWEB_CLIENT_ID not configured")
-        if not THIRDWEB_NFT_CONTRACT:
-            raise RuntimeError("THIRDWEB_NFT_CONTRACT is not configured.")
-        
-        self.client_id = THIRDWEB_CLIENT_ID
-        self.nft_contract = THIRDWEB_NFT_CONTRACT
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.js_dir=os.path.join(self.script_dir,"js")
+        self.env_path=os.path.join(self.js_dir,'.env')
     
-    def upload_file(self, file_path: Path) -> str:
-        ##上传图片/文件到 thirdweb storage，返回 ipfs://CID 链接
-        file_bytes = Path(file_path).read_bytes()
+    def call_js_script(self,script_name,args=[]):
+        """
+        调用 JS 文件夹下的脚本
+        script_name: 脚本名字 (例如 'transfer_nft.mjs')
+        args: 参数列表 (例如 [27, '0xabc...', 1])
+        """
+        command=["node",script_name]+[str(arg) for arg in args]
 
-        headers = {
-            "x-sdk-name": "thirdweb-python",
-            "x-client-id": self.client_id,
-        }
-
-        files = {
-            "file": (Path(file_path).name, file_bytes)
-        }
-
-        response = requests.post(
-            THIRDWEB_STORAGE_UPLOAD_URL,
-            headers=headers,
-            files=files
-        )
-
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Storage upload failed: {response.text}"
+        print("执行"+script_name+ ' '.join(command))
+        try:
+            result=subprocess.run(
+                command,
+                cwd=self.js_dir,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                check=True
             )
-
-        data = response.json()
-        # thirdweb 统一返回 ipfs://CID 的格式
-        return data.get("uri", None)
-    
-    ##metadata JSON:不能上链,传到IPFS里面,只有Mint 时传入 metadata URI。
-    def upload_metadata(self, metadata: dict) -> str:
-        ##上传 metadata JSON 到 thirdweb storage
-        headers = {
-            "x-sdk-name": "thirdweb-python",
-            "x-client-id": self.client_id,
-        }
-
-        response = requests.post(
-            THIRDWEB_STORAGE_UPLOAD_URL,
-            headers=headers,
-            json={"metadata": metadata}
-        )
-
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Metadata upload failed: {response.text}"
-            )
-
-        return response.json().get("uri", None)
+            return result.stdout
         
-    def mint_nft(self, to_address: str, metadata_uri: str) -> dict:
+        except subprocess.CalledProcessError as e:
+            print(f"脚本执行失败: {e}")
+            print(f"标准错误输出: {e.stderr}")
+            raise
+
+    async def async_execute(self, func, callback=None, *args, **kwargs):
         """
-        调用 thirdweb ERC721 合约写入 API 进行 mint。
-        返回: token_id, tx_hash, contract_address
+        异步执行 NFTService 的任意方法，并在结束时调用回调
+        func: 方法本身，如 self.mint_nft
+        callback: 回调函数（可选），形式为 callback(result)
         """
-        mint_url = f"https://api.thirdweb.com/contract/{self.contract}/erc721/mint"
+        loop = asyncio.get_running_loop()
 
-        headers = {
-            "x-client-id": self.client_id,
-            "Content-Type": "application/json"
-        }
+        wrapped = partial(func, *args, **kwargs)
+        
+        # 将同步方法封装到线程池执行
+        result = await loop.run_in_executor(None, wrapped)
 
-        body = {
-            "to": to_address,
-            "metadataUri": metadata_uri
-        }
+        # 执行回调
+        if callback:
+            try:
+                callback(result)
+            except Exception as e:
+                print("回调函数错误:", e)
 
-        resp = requests.post(mint_url, headers=headers, json=body)
-        if resp.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Mint error: {resp.text}"
-            )
+        return result
 
-        return resp.json()
+
+
+if __name__ == "__main__":
+
+    # 创建服务实例
+    service = NFTService()
+
+    # print("\n====== TEST: mint_nft ======")
+    # try:
+    #     result = service.mint_nft("Test_4_spend_time", "4: This is a test_4 NFT", "D:\\AllZiLiao\\MyProgram\\NewSoftwareEngineering\\AIGC_Client\\local_result\\e124f35b_d657_4d5d_b18d_c2a2886f9b82.jpg")
+    #     print("mint_nft 返回：", result)
+    # except Exception as e:
+    #     print("mint_nft 测试失败：", e)
+
+    # print("\n====== TEST: get_nft_metadata ======")
+    # try:  
+    #     result = service.get_nft_metadata("31")
+    #     print("get_nft_metadata 返回：", result)
+    # except Exception as e:
+    #     print("get_nft_metadata 测试失败：", e)
+
+    print("\n====== TEST: transfer_nft ======")
+    try:  
+        result = service.transfer_nft("41", "0x92098227688A14FE94122A4e590bf604674AF9e1", 1)
+        print("transfer_nft 返回：", result)
+    except Exception as e:
+        print("transfer_nft 测试失败：", e)
+
+    print("====== TEST: check_balance ======")
+    try:  
+        result = service.check_balance("0x63107216004a144BA683673562E277267797c6DB")
+        print("check_balance 返回：", result)
+    except Exception as e:
+        print("check_balance 测试失败：", e)
+
+
+
+
+
+

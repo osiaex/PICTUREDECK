@@ -168,3 +168,6 @@ class RegisterWindow(QWidget):
 
     def show_info(self, message):
         QMessageBox.information(self, "消息", message)
+
+    def enable_ui(self):
+        self.register_button.setEnabled(True)

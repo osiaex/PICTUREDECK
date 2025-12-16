@@ -1,5 +1,5 @@
 {
-    "environment": "offline",
+    "environment": "staging",
     "debug": true,
     "api_base_urls": {
         "offline": "http://127.0.0.1:8000/api/v1",

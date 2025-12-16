@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 #     pyside2-uic form.ui -o ui_form.py
 
 from controllers.main_controller import MainController
-
+from services.config import app_config
 # if __name__ == "__main__":
 #     app = QApplication(sys.argv)
 #     widget = ForgotPasswordWindow(lambda :42)
@@ -17,6 +17,7 @@ from controllers.main_controller import MainController
 #     sys.exit(app.exec())
 
 if __name__ == "__main__":
+    print(f"Environment: {app_config.get_env()}\n Debug: {app_config.is_debug()}\n Base URL: {app_config.get_base_url()}\n")
     controller = MainController()
     controller.run()
 

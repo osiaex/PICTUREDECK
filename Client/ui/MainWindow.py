@@ -214,7 +214,8 @@ class MainWindow(QMainWindow):
             self.upload_label.setStyleSheet("color: #409EFF; font-size: 14px;")
             self.uploaded_image_path = file_path
 
-
+    def enable_ui(self):
+        self.generate_button.setEnabled(True)
 
     # ===== 生成按钮点击事件 =====
     def handle_generate(self):
@@ -231,7 +232,7 @@ class MainWindow(QMainWindow):
             if not self.uploaded_image_path:
                 self.show_error("请上传参考图片")
                 return
-            # todo 多图的同步上传暂不支持，先只上传一张
+
             async_request(
                 sender=self,
                 method="POST",
@@ -255,7 +256,6 @@ class MainWindow(QMainWindow):
         response_data = reply.readAll().data().decode("utf-8")
         result = json.loads(response_data)
         if result.get("code") == 200:
-            self.show_info("图片上传成功")
             # 上传成功后继续生成
             data = {"type": gen_type.value, "prompt": prompt, "parameters": parameters, "image": result.get("data", {}).get("file_id")}
             async_request(
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         result = json.loads(response_data)
         if result.get("code") == 200:
             self.show_info("生成请求已提交，稍后请在历史记录中查看结果")
-            record_widget = RecordWidget(result.get("data", {}))
+            record_widget = RecordWidget(result.get("data", {}), is_generation_completed=False)
             self.history_page.addWidget(record_widget)
             self.start_polling_generation(result.get("data").get("task_id"), record_widget)
         else:
@@ -304,13 +304,17 @@ class MainWindow(QMainWindow):
             status = result.get("data", {}).get("status")
             if status == "completed":
                 timer.stop()
-                self.show_info("生成完成")
+                record_widget.update_status(is_generation_completed=True)
                 record_widget.request_image(result.get("data", {}).get("result_url", ""))
+
+                self.show_info("生成完成")
             elif status == "failed":
                 timer.stop()
+                # todo 优化生成失败时RecordWidget组件的显示
                 self.show_error("生成失败")
         else:
             self.show_error(result.get("message", "轮询生成状态失败"))
+            timer.stop()
 
     def __on_log_out(self):
         session.clear_session()

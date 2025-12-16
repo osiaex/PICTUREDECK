@@ -93,3 +93,5 @@ debug*
 收藏.json
 generated_outputs/
 config-本地版.py
+app/services/js/node_modules/
+reference_images/

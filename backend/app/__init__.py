@@ -42,5 +42,8 @@ def create_app():
     # ⭐️⭐️⭐️ 新增：注册 upload 蓝图 ⭐️⭐️⭐️
     from .routes.upload_routes import upload_blueprint
     app.register_blueprint(upload_blueprint, url_prefix='/api/v1/upload')
+
+    from .routes.nft_routes import nft_blueprint
+    app.register_blueprint(nft_blueprint, url_prefix='/api/v1/nft')
     
     return app

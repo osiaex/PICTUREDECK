@@ -49,6 +49,21 @@ class Generation(db.Model):
     def to_dict(self):
         params_data = self.parameters or {}
         review_info = params_data.get('review', {})
+
+        # 默认值
+        is_on_chain = False
+        is_transferred = False
+        nft_token_id = None
+
+        # nft 来自 NFT 模型中的 backref
+        nft = getattr(self, "nft", None)
+
+        if nft:
+            nft_token_id = nft.token_id
+            # 已铸造（无论是否已转移）
+            is_on_chain = nft.status in ('minted', 'transfer_pending', 'transferred')
+            # 已转移
+            is_transferred = nft.status == 'transferred'
         return {
             "task_id": self.uuid, # 对应新文档的 task_id
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
@@ -59,7 +74,11 @@ class Generation(db.Model):
             "completed_at": self.completed_at.isoformat() + "Z" if self.completed_at else None,
             # 将审核信息也加入返回
             "review_status": review_info.get('status', 'pending'),
-            "review_message": review_info.get('message', None)
+            "review_message": review_info.get('message', None),
+
+            "is_on_chain": is_on_chain,
+            "is_transferred": is_transferred,
+            "nft_token_id": nft_token_id,
         }
 
 
@@ -94,3 +113,60 @@ class Collection(db.Model):
         if include_children:
             data['children'] = [child.to_dict(include_children=True) for child in self.children]
         return data
+    
+
+class NFT(db.Model):
+    __tablename__ = 'nfts'
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+
+    # 关联生成记录
+    generation_id = db.Column(db.BigInteger, db.ForeignKey('generations.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, unique=True)
+    generation = db.relationship('Generation', backref=db.backref('nft', uselist=False))
+
+    # 逻辑上属于哪个用户（请求 mint 的用户）
+    intended_owner_user_id = db.Column(db.BigInteger, db.ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    intended_owner = db.relationship('User', backref=db.backref('nfts', lazy='dynamic'))
+    # 链上 owner，初始为后端钱包地址
+    onchain_owner_address = db.Column(db.String(255), nullable=False)
+
+    # 铸造出的 tokenId
+    token_id = db.Column(db.String(255), nullable=False)
+
+    # 合约地址
+    # contract_address = db.Column(db.String(255), nullable=False)
+
+    # 铸造交易 hash
+    mint_transaction_hash = db.Column(db.String(255), nullable=False, unique=True)
+
+    # 转移 NFT 的交易 hash（可为空）
+    # transfer_transaction_hash = db.Column(db.String(255), nullable=True)
+
+    # NFT 元数据（JSON）
+    nft_metadata = db.Column(db.JSON, nullable=True)
+
+    # 状态机
+    status = db.Column(
+        db.Enum('pending_mint', 'minted', 'transfer_pending', 'transferred', 'failed', name='nft_status'),
+        nullable=False,
+        default='pending_mint'
+    )
+
+    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)
+    confirmed_at = db.Column(db.TIMESTAMP, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "generation_id": self.generation_id,
+            "intended_owner_user_id": self.intended_owner_user_id,
+            "onchain_owner_address": self.onchain_owner_address,
+            "token_id": self.token_id,
+            "contract_address": self.contract_address,
+            "mint_transaction_hash": self.mint_transaction_hash,
+            "transfer_transaction_hash": self.transfer_transaction_hash,
+            "nft_metadata": self.nft_metadata,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+        }

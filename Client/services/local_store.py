@@ -15,6 +15,26 @@ def safe_filename_from_url(url: str) -> str:
     return safe_name + ext
 
 
+def save_data_from_url(url: str, data: bytes, base_dir="local_result") -> str:
+    """
+    将任意二进制数据（如视频文件或图片）保存到本地目录。
+    文件名根据 URL 生成安全且尽量保留扩展名。
+    返回最终保存的绝对路径。
+    """
+    # 生成安全文件名（与你当前逻辑保持一致）
+    filename = safe_filename_from_url(url)
+
+    # 确保目录存在
+    os.makedirs(base_dir, exist_ok=True)
+
+    # 最终保存路径
+    full_path = os.path.join(base_dir, filename)
+
+    # 写入二进制数据
+    with open(full_path, "wb") as f:
+        f.write(data)
+
+    return full_path
 
 def save_pixmap_from_url(url: str, pixmap: QPixmap, base_dir="local_result") -> str:
     """

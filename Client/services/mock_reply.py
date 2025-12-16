@@ -31,6 +31,22 @@ class MockReply(QObject):
     # 模拟 QNetworkReply 方法
     def readAll(self):
         return self._data
+    
+    def bytesAvailable(self):
+        return self._data.size()
+    
+    def peek(self, maxlen):
+        """
+        模拟 QNetworkReply.peek(maxlen)：
+        返回最多 maxlen 字节，但不消耗数据。
+        """
+        if maxlen < 0:
+            return QByteArray()  # 合理的保护
+
+        if maxlen >= self._data.size():
+            return QByteArray(self._data)  # 全部复制一份
+        else:
+            return QByteArray(self._data[:maxlen])
 
     def abort(self):
         self._aborted = True
@@ -47,8 +63,20 @@ class MockReply(QObject):
         if key == QNetworkRequest.HttpStatusCodeAttribute:
             return 200
         return None
+    
+    def url(self):
+        class Url:
+            def toString(self_inner):
+                return "mock://api/mock_endpoint"
+        return Url()
+    
+    def header(self, key):
+        """模拟 Content-Type 读取"""
+        if key == QNetworkRequest.ContentTypeHeader:
+            return "application/json"
+        return None
 
-
+    
 def match_dynamic(mock_key: str, endpoint_url: str):
     mock_fields = mock_key.split("/")
     url_fields = endpoint_url.split("/")

@@ -110,21 +110,55 @@ CREATE TABLE `collections` (
 
 CREATE TABLE `nfts` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+
+  -- generation_id 与生成的图片资源对应
   `generation_id` bigint unsigned NOT NULL,
-  `owner_user_id` bigint unsigned NOT NULL,
-  `token_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `contract_address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `transaction_hash` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('pending','confirmed','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+
+  -- NFT 逻辑上属于哪个用户（用户上传请求时确定）
+  `intended_owner_user_id` bigint unsigned NOT NULL,
+
+  -- 铸造后链上 owner，初始为后端服务钱包地址
+  `onchain_owner_address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+
+  -- 铸造出的 tokenId
+  `token_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+
+  -- 合约地址（THIRDWEB_NFT_CONTRACT）
+  -- `contract_address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+
+  -- 铸造交易 hash
+  `mint_transaction_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+
+  -- 转移 NFT 的交易 hash（可为空）
+  -- `transfer_transaction_hash` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+
+  -- NFT 元数据（JSON 格式）
+  `nft_metadata` JSON DEFAULT NULL,
+
+  -- 状态机
+  `status` enum('pending_mint', 'minted', 'transfer_pending', 'transferred', 'failed') 
+      COLLATE utf8mb4_unicode_ci 
+      NOT NULL DEFAULT 'pending_mint',
+
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `confirmed_at` timestamp NULL DEFAULT NULL,
+
   PRIMARY KEY (`id`),
+
   UNIQUE KEY `uk_generation_id` (`generation_id`),
-  UNIQUE KEY `uk_transaction_hash` (`transaction_hash`),
-  KEY `fk_nfts_owner_user_id` (`owner_user_id`),
-  CONSTRAINT `fk_nfts_generation_id` FOREIGN KEY (`generation_id`) REFERENCES `generations` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_nfts_owner_user_id` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  UNIQUE KEY `uk_mint_txhash` (`mint_transaction_hash`),
+
+  KEY `fk_nfts_owner_user_id` (`intended_owner_user_id`),
+
+  CONSTRAINT `fk_nfts_generation_id`
+    FOREIGN KEY (`generation_id`) REFERENCES `generations` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+
+  CONSTRAINT `fk_nfts_owner_user_id`
+    FOREIGN KEY (`intended_owner_user_id`) REFERENCES `users` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 
 -- =====================================================

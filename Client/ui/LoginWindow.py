@@ -201,4 +201,7 @@ class LoginWindow(QWidget):
             handle_response=self.__handle_login_response,
         )
 
+    def enable_ui(self):
+        self.login_button.setEnabled(True)
+
 

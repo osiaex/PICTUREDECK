@@ -89,5 +89,5 @@ user_session.json
 local_result/
 __pycache__/
 debug*
-*.db
+*.db*
 收藏.json

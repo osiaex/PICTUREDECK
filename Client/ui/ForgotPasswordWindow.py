@@ -34,8 +34,10 @@ class ForgotPasswordWindow(QWidget):
             data={"email": self.email},
             handle_response=self.__handle_get_code_response
         )
+        self.get_code_button.setEnabled(False)
 
     def __handle_get_code_response(self, reply):
+        self.get_code_button.setEnabled(True)
         response_data = reply.readAll().data().decode("utf-8")
         result = json.loads(response_data)
         if result.get("code") == 200:
@@ -44,6 +46,9 @@ class ForgotPasswordWindow(QWidget):
         else:
             self.show_error(result.get("message", "获取验证码失败"))
 
+    def enable_ui(self):
+        self.get_code_button.setEnabled(True)
+        self.submit_button.setEnabled(True)
 
     # ---- 提交新密码逻辑 ----
     def handle_submit(self):
@@ -74,7 +79,11 @@ class ForgotPasswordWindow(QWidget):
             },
             handle_response=self.__handle_submit_response
         )
+        self.submit_button.setEnabled(False)
+
+
     def __handle_submit_response(self, reply):
+        self.enable_ui()
         response_data = reply.readAll().data().decode("utf-8")
         result = json.loads(response_data)
         if result.get("code") == 200:

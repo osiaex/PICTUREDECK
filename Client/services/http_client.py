@@ -1,3 +1,5 @@
+import mimetypes
+import os
 from PySide6.QtCore import QIODevice, QObject, Signal, QTimer, QByteArray, QUrl, QFile,qDebug
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QHttpMultiPart, QHttpPart
 import json
@@ -49,7 +51,7 @@ class HttpClient(QObject):
         url = QUrl(final_url)
         request = QNetworkRequest(url)
 
-        if isinstance(content_type, str) and content_type.strip():
+        if isinstance(content_type, str) and content_type.strip() and content_type.lower() != "multipart/form-data":
             request.setHeader(QNetworkRequest.ContentTypeHeader, content_type)
 
         if token:
@@ -57,7 +59,7 @@ class HttpClient(QObject):
 
         if app_config.is_debug():
             # 打印 QNetworkRequest 的信息
-            print("[Offline Mode] Request info:")
+            print(f"[{app_config.get_env().capitalize()} Mode] Request info:")
             print("URL:", request.url().toString())
             print("Method:", method)
             # 打印 Header
@@ -77,16 +79,40 @@ class HttpClient(QObject):
         elif method.upper() == "DELETE":
             reply = self.manager.deleteResource(request)
         else:
-            if content_type.startswith("image/") and isinstance(data, str):
-                file = QFile(data)
-                file.open(QIODevice.ReadOnly)
-                payload = file.readAll()
+            if content_type.startswith("multipart/") and isinstance(data, str):
+                # 使用multipart/form-data携带文件
+                file_path = data
+                multi_part = QHttpMultiPart(QHttpMultiPart.FormDataType)
+
+                # 创建文件 form-data 部分
+                file_part = QHttpPart()
+                file_part.setHeader(QNetworkRequest.ContentDispositionHeader,
+                                    f'form-data; name="file"; filename="{os.path.basename(file_path)}"')
+
+                # 自动猜测 MIME 类型
+                mime, _ = mimetypes.guess_type(file_path)
+                if mime:
+                    file_part.setHeader(QNetworkRequest.ContentTypeHeader, mime)
+                else:
+                    file_part.setHeader(QNetworkRequest.ContentTypeHeader, "application/octet-stream")
+
+                file_device = QFile(file_path)
+                file_device.open(QIODevice.ReadOnly)
+                file_part.setBodyDevice(file_device)
+                file_device.setParent(multi_part)  # 生命周期绑定
+
+                multi_part.append(file_part)
+                payload = multi_part
             elif content_type == "application/json":
                 payload = QByteArray(json.dumps(data or {}).encode("utf-8"))
             else:
                 payload = data
             if method.upper() == "POST":
                 reply = self.manager.post(request, payload)
+                if content_type.startswith("multipart/"):
+                    # multipart 需要特殊处理
+                    payload.setParent(reply)  # 生命周期绑定
+                    file_device.setParent(multi_part)  # 生命周期绑定
             elif method.upper() == "PUT":
                 reply = self.manager.put(request, payload)
             else:
