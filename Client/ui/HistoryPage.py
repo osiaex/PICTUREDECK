@@ -1,6 +1,6 @@
 import json
 import os
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QHBoxLayout, QLineEdit, QPushButton, QMenu, QMessageBox, QInputDialog
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QHBoxLayout, QLineEdit, QPushButton, QMenu, QMessageBox, QInputDialog, QCheckBox, QLabel
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, Signal, QTimer, QSize
 from services.first_frame_extractor import FirstFrameExtractor
@@ -66,21 +66,23 @@ record: dict
     }
 """
     url_record_map = {}  # 类变量，缓存 URL 到 RecordWidget 实例的映射
-    def __init__(self, record, parent=None, is_generation_completed=True):
+    def __init__(self, record, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout()
-        self.image_size = 250
+        self.image_size = 350
         self.type=STR_TO_DESC.get(record.get("type", "未知类型"), "未知类型")
         self.task_id=record.get("task_id","")
         self.nft_token_id=record.get("nft_token_id","")
-
-        self.is_generation_completed=is_generation_completed
 
         self.is_on_chain=record.get("is_on_chain", False)
         self.is_transferred=record.get("is_transferred", False)
 
         self.is_chain_pending= False
         self.is_transfer_pending= False
+
+        self.status = record.get("status", "")
+        self.review_status = record.get("review_status", "")
+        self.review_message = record.get("review_message", "")
 
         self.prompt=record.get("prompt", "")
         self.parameters=record.get("parameters", {})
@@ -196,7 +198,7 @@ record: dict
             self.icon_transfer_pending_label.setVisible(False)
             self.movie_transfer_pending.stop()
 
-        if self.is_chain_pending or self.is_transfer_pending or not self.is_generation_completed:
+        if self.is_chain_pending or self.is_transfer_pending or self.status == "queued" or self.status == "processing":
             # 显示遮罩
             self.overlay.setActive(True, "请稍候...")
         else:
@@ -211,6 +213,35 @@ record: dict
         当组件大小改变时触发，用于将图标强制固定在右上角
         """
         super().resizeEvent(event)
+
+        if self.status == "failed":
+            detail = self.review_message or "未知原因"
+
+            msg = f"""
+            <div style="font-family: 'Microsoft YaHei';">
+                <div style="
+                    color: #d93026;
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin-bottom: 6px;
+                ">
+                    ❌ 生成失败
+                </div>
+
+                <div style="
+                    color: #555555;
+                    font-size: 13px;
+                    line-height: 1.5;
+                ">
+                    <b>原因：</b>{detail}
+                </div>
+            </div>
+            """
+
+            self.img_label.setTextFormat(Qt.RichText)
+            self.img_label.setText(msg)
+
+
 
         # 调整遮罩大小
         self.overlay.syncGeometry()
@@ -252,12 +283,19 @@ record: dict
             current_x -= chain_size.width()
             chain_icon_widget.move(current_x, top_margin)
 
-    def update_status(self, is_generation_completed=None, is_on_chain=None, is_transferred=None, is_chain_pending=None, is_transfer_pending=None):
+    def update_status(self, status=None, review_status=None, review_message=None, is_on_chain=None, is_transferred=None, is_chain_pending=None, is_transfer_pending=None):
         """
         用于外部更新 NFT 状态，并自动重新渲染图标。
         """
-        if is_generation_completed is not None:
-            self.is_generation_completed = is_generation_completed
+
+        if status is not None:
+            self.status = status
+
+        if review_status is not None:
+            self.review_status = review_status
+
+        if review_message is not None:
+            self.review_message = review_message
 
         if is_on_chain is not None:
             self.is_on_chain = is_on_chain
@@ -282,8 +320,7 @@ record: dict
         QMessageBox.information(self, "信息", message)
 
     def is_video_type(self):
-        return self.type in ["文生视频", "首帧生视频"] or \
-            (self.result_url.lower().endswith((".mp4", ".mov", ".avi", ".webm")))
+        return self.type in ["文生视频", "首帧生视频"]
 
     def set_image(self, pixmap: QPixmap):
         self.loading_movie.stop()
@@ -313,6 +350,8 @@ record: dict
         return False
     
     def remove_record(self):
+        if self.result_url is None:
+            return
         db = LocalDB.instance()
         db.delete_record_by_url(self.result_url)
         if self.result_url in RecordWidget.url_record_map:
@@ -323,6 +362,8 @@ record: dict
     
     def request_image(self, image_url):
         self.result_url=image_url
+        if not image_url:
+            return
         from urllib.parse import urlparse
         image_url = urlparse(image_url)
         try:
@@ -344,6 +385,9 @@ record: dict
     
     def get_record_dict(self):
         return {
+            "status": self.status,
+            "review_status": self.review_status,
+            "review_message": self.review_message,
             "task_id": self.task_id,
             "nft_token_id": self.nft_token_id,
             "is_on_chain": self.is_on_chain,
@@ -474,6 +518,41 @@ class HistoryPage(QWidget):
 
         self.main_layout.addWidget(search_bar_container)
 
+        # ========== 类型过滤区 ==========
+        type_filter_container = QWidget()
+        type_layout = QHBoxLayout(type_filter_container)
+        type_layout.setContentsMargins(10, 0, 10, 0)
+        type_layout.setSpacing(10)
+
+        self.ALL_TYPES = [
+            "文生图",
+            "参考图生图",
+            "文生视频",
+            "首帧生视频",
+        ]
+
+        self.type_checkboxes = {}
+        self.enabled_types = set(self.ALL_TYPES)
+
+        # --- 全选 ---
+        self.select_all_cb = QCheckBox("全选")
+        self.select_all_cb.setChecked(True)
+        self.select_all_cb.stateChanged.connect(self.onSelectAllClicked)
+        type_layout.addWidget(self.select_all_cb)
+
+        # --- 各类型 ---
+        for t in self.ALL_TYPES:
+            cb = QCheckBox(t)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self.onTypeFilterChanged)
+            self.type_checkboxes[t] = cb
+            type_layout.addWidget(cb)
+
+        type_layout.addStretch(1)
+        self.main_layout.addWidget(type_filter_container)
+
+
+
         # ========== 滚动区域 ===========
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -512,11 +591,17 @@ class HistoryPage(QWidget):
         self.filterRecords()
 
     def filterRecords(self):
-        """只有 RecordWidget.prompt 同时包含所有 tag 才显示"""
         for record in self.all_records:
+            # ===== 1. 提示词过滤 =====
             text = getattr(record, "prompt", "").lower()
-            visible = all(t.lower() in text for t in self.tags)
-            record.setVisible(visible)
+            keyword_match = all(t.lower() in text for t in self.tags)
+
+            # ===== 2. 类型过滤 =====
+            record_type = getattr(record, "type", None)
+            type_match = record_type in self.enabled_types
+
+            record.setVisible(keyword_match and type_match)
+
 
     # ===============================
     # 标签（tag/chip） 功能
@@ -679,9 +764,51 @@ class HistoryPage(QWidget):
                 
         async_request(
             sender=self,
-            method="POST",
-            url="/user/generation_list",
-            data={"result_url": widget.result_url},
+            method="DELETE",
+            url=f"/user/generation_list/{widget.task_id}",
+            data=None,
             handle_response=lambda reply: __on_delete_response(self, reply, widget)
         )
+
+
+    def onTypeFilterChanged(self):
+        self.enabled_types.clear()
+
+        for t, cb in self.type_checkboxes.items():
+            if cb.isChecked():
+                self.enabled_types.add(t)
+
+        # 同步「全选」复选框状态
+        all_checked = len(self.enabled_types) == len(self.ALL_TYPES)
+
+        self.select_all_cb.blockSignals(True)
+        self.select_all_cb.setChecked(all_checked)
+        self.select_all_cb.blockSignals(False)
+
+        self.filterRecords()
+
+
+    def onSelectAllClicked(self):
+        # 当前是否为“全选状态”
+        all_checked = all(cb.isChecked() for cb in self.type_checkboxes.values())
+
+        # 目标状态：反转
+        target = not all_checked
+
+        # 阻止信号递归触发
+        for cb in self.type_checkboxes.values():
+            cb.blockSignals(True)
+            cb.setChecked(target)
+            cb.blockSignals(False)
+
+        # 同步 enabled_types
+        self.enabled_types = set(self.ALL_TYPES) if target else set()
+
+        # 同步全选自身状态
+        self.select_all_cb.blockSignals(True)
+        self.select_all_cb.setChecked(target)
+        self.select_all_cb.blockSignals(False)
+
+        self.filterRecords()
+
 

@@ -83,7 +83,7 @@ def async_request(sender,method, url, data, handle_response=None, timeout=3000):
             return
 
         timer.stop()
-        if sender and sender.enable_ui:
+        if sender and hasattr(sender, "enable_ui"):
             sender.enable_ui()
             
         if app_config.is_debug():

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon, QPixmap
 from PySide6.QtCore import Qt, QModelIndex
-from services.nft import mint_nft
+from services.nft import mint_nft, transfer_nft
 from ui.RecordDialog import RecordDialog
 from ui.HistoryPage import RecordWidget
 from ui.MouseBlockOverlay import MouseBlockOverlay
@@ -287,7 +287,7 @@ class FavTreeView(QWidget):
             export_result = [self.node_map[n].copy() for n in descendants]   
             # 根节点本身不导出，只导出子节点，并将直接子节点的 parent_id 置空
             for child in export_result:
-                if child["parent_id"] == "/":
+                if child["parent_id"] == current["id"]:
                     child["parent_id"] = None
 
         try:
@@ -454,7 +454,10 @@ class FavTreeView(QWidget):
         current_path = self.get_path(self.current_folder_id)
         name, ok = QInputDialog.getText(self, "新建文件夹",
                                         f"当前路径：{current_path}\n请输入文件夹名称：")
-        if not ok or not name.strip():
+        if not ok:
+            return
+        
+        if not name.strip():
             self.show_error("文件夹名称不能为空")
             return
 
@@ -478,7 +481,7 @@ class FavTreeView(QWidget):
             data={"parent_id":self.current_folder_id, "name":name, "node_type":"folder"},
             handle_response=lambda reply: self.__handle_create_new_node_response(reply, new_node=new_node)
         )
-        # todo 在等待期间为用户提供视觉反馈
+
         if not hasattr(self, 'overlay'):
             self.overlay = MouseBlockOverlay(self)
         self.overlay.setActive(True, "请稍候...")
@@ -552,7 +555,7 @@ class FavTreeView(QWidget):
             
             if not record.is_video_type() and record.is_on_chain and not record.is_transferred:
                 menu.addAction("转让NFT",
-                    lambda: self.show_info("转让功能正在开发中，敬请期待！")
+                    lambda: transfer_nft(self, record)
                 )
             menu.addAction("删除收藏",
                            lambda: self.delete_node_recursive(node_id))
@@ -585,7 +588,7 @@ class FavTreeView(QWidget):
         children = self.get_direct_children(folder_id)
         for child in children:
             if child["name"] == alias and child["node_type"] == "file":
-                self.show_error("同级目录下已存在同名文件")
+                self.show_error("同级目录下已存在同名项")
                 return
 
         new_node = {

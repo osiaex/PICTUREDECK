@@ -5,6 +5,7 @@
 from . import db
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid # 导入uuid库来生成业务ID
+from sqlalchemy.ext.mutable import MutableDict
 # User类的定义不变...
 class User(db.Model):
     __tablename__ = 'users'
@@ -37,7 +38,8 @@ class Generation(db.Model):
     status = db.Column(db.Enum('queued', 'processing', 'completed', 'failed'), nullable=False, default='queued')
     generation_type = db.Column(db.Enum('t2i', 'i2i', 't2v', 'i2v'), nullable=False)
     prompt = db.Column(db.Text, nullable=True)
-    parameters = db.Column(db.JSON, nullable=True)
+    parameters = db.Column(MutableDict.as_mutable(db.JSON))
+
     result_url = db.Column(db.String(512), nullable=True)
     physical_path = db.Column(db.String(512), nullable=True)
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())

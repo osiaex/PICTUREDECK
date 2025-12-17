@@ -598,7 +598,7 @@ class AdminService:
         if stats_type == "task":
             # 违规任务统计
             query = self.db.query(Generation).filter(
-                Generation.status == "completed"
+                Generation.status == "failed"
             )
 
             if start_date and end_date:
@@ -611,7 +611,7 @@ class AdminService:
             # 模拟违规检测
             violation_tasks = []
             for task in tasks:
-                if task.prompt and any(keyword in task.prompt.lower() for keyword in ["暴力", "色情", "违法", "暴露"]):
+                if task.parameters and any(keyword in task.parameters['review']['message'].lower() for keyword in ["not pass", "error", "violate", "illegal"]):
                     violation_tasks.append(task)
 
             return {
@@ -627,12 +627,17 @@ class AdminService:
 
             for user in users:
                 # 查询该用户的生成任务
-                user_tasks = self.db.query(Generation).filter(Generation.user_id == user.id).all()
+                query = self.db.query(Generation).filter(Generation.user_id == user.id, Generation.status == "failed")
 
+                if start_date and end_date:
+                    query = query.filter(
+                        Generation.created_at.between(start_date, end_date)
+                    )
+                user_tasks = query.all()
                 # 统计违规任务数量
                 violation_count = 0
                 for task in user_tasks:
-                    if task.prompt and any(keyword in task.prompt.lower() for keyword in ["暴力", "色情", "违法", "暴露"]):
+                    if task.parameters and any(keyword in task.parameters['review']['message'].lower() for keyword in ["not pass", "error", "violate", "illegal"]):
                         violation_count += 1
 
                 if violation_count > 0:

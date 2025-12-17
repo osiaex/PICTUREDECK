@@ -525,6 +525,8 @@ class AdminCLI(cmd.Cmd):
         """生成记录统计: stats [--from 日期] [--to 日期]"""
         args = self.parse_args(arg)
 
+        from_date = None
+        to_date = None
         if '--from' in args:
             from_date = self.validate_date(args['--from'])
             if from_date is None:  # 有值但验证失败
@@ -540,7 +542,7 @@ class AdminCLI(cmd.Cmd):
                 end_date=to_date
             )
 
-            headers = ["ID", "user_id", "prompt","review_message ", "status", "created_at"]
+            headers = ["ID", "user_id", "prompt","type ", "status", "created_at"]
             rows = []
             for task in tasks:
                 rows.append([
@@ -588,19 +590,19 @@ class AdminCLI(cmd.Cmd):
                 rows = []
 
                 for task in stats["violation_tasks"]:
-                    # 生成review_message
-                    if task.prompt:
-                        prompt_lower = task.prompt.lower()
-                        if "暴露" in prompt_lower or "色情" in prompt_lower:
-                            review_msg = "色情内容"
-                        elif "暴力" in prompt_lower:
-                            review_msg = "暴力内容"
-                        elif "违法" in prompt_lower or "不当" in prompt_lower:
-                            review_msg = "违法内容"
-                        else:
-                            review_msg = "不当内容"
-                    else:
-                        review_msg = "无提示词"
+                    # # 生成review_message
+                    # if task.prompt:
+                    #     prompt_lower = task.prompt.lower()
+                    #     if "暴露" in prompt_lower or "色情" in prompt_lower:
+                    #         review_msg = "色情内容"
+                    #     elif "暴力" in prompt_lower:
+                    #         review_msg = "暴力内容"
+                    #     elif "违法" in prompt_lower or "不当" in prompt_lower:
+                    #         review_msg = "违法内容"
+                    #     else:
+                    #         review_msg = "不当内容"
+                    # else:
+                    #     review_msg = "无提示词"
 
                     created_at_str = task.created_at.strftime("%Y-%m-%dT%H:%M:%S+ 08:00")
 
@@ -608,7 +610,7 @@ class AdminCLI(cmd.Cmd):
                         str(task.id),
                         str(task.user_id),
                         task.prompt or "",
-                        review_msg,
+                        task.parameters['review']['message'] if task.parameters and 'review' in task.parameters and 'message' in task.parameters['review'] else "",
                         created_at_str
                     ])
 

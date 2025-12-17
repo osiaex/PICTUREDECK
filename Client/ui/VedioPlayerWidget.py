@@ -23,9 +23,13 @@ class VideoPlayerWidget(QWidget):
         control_layout = QHBoxLayout()
 
         # 播放/暂停
-        self.btn_play = QPushButton("▶")
+        self.btn_play = QPushButton("⏸")
         self.btn_play.clicked.connect(self.toggle_play)
         control_layout.addWidget(self.btn_play)
+
+        fm = self.btn_play.fontMetrics()
+        w = max(fm.horizontalAdvance("▶"), fm.horizontalAdvance("⏸")) + 16
+        self.btn_play.setFixedWidth(w)
 
         # 时间显示
         self.label_time = QLabel("00:00 / 00:00")
@@ -51,9 +55,19 @@ class VideoPlayerWidget(QWidget):
         self.player.durationChanged.connect(self.update_duration)
         self.player.positionChanged.connect(self.update_position)
 
-        # self.player.play()
+        self.player.mediaStatusChanged.connect(self.on_media_status_changed)
+
+        self.player.play()
 
     # ===== 控制方法 =====
+
+    def on_media_status_changed(self, status):
+        if status == QMediaPlayer.EndOfMedia:
+            # 播放完成：按钮恢复为“可播放”
+            self.btn_play.setText("▶")
+            self.player.pause()              # 确保状态一致
+            self.player.setPosition(0)       # 是否回到起点，按你需求
+
     def toggle_play(self):
         if self.player.playbackState() == QMediaPlayer.PlayingState:
             self.player.pause()

@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
         self.switch_to_profile = switch_to_profile
         self.logout = logout
         self.setWindowTitle("AIGC 内容生成客户端")
-        self.setMinimumSize(800, 550)
+        self.setMinimumSize(900, 550)
         self.uploaded_image_path = None
         self.generation_list = []  # 生成记录列表数据初始化为空
         self.fav_list = []  # 收藏列表数据初始化为空
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         result = json.loads(response_data)
         if result.get("code") == 200:
             self.show_info("生成请求已提交，稍后请在历史记录中查看结果")
-            record_widget = RecordWidget(result.get("data", {}), is_generation_completed=False)
+            record_widget = RecordWidget(result.get("data", {}))
             self.history_page.addWidget(record_widget)
             self.start_polling_generation(result.get("data").get("task_id"), record_widget)
         else:
@@ -292,26 +292,30 @@ class MainWindow(QMainWindow):
                 handle_response=lambda reply: self.__handle_poll_response(reply, task_id, record_widget, timer),
             )
 
+        poll()  # 立即执行一次
         timer = QTimer(self)
         timer.timeout.connect(poll)
         timer.start(2000)  # 每2秒轮询一次
-        poll()  # 立即执行一次
+
 
     def __handle_poll_response(self, reply, task_id, record_widget: RecordWidget, timer):
         response_data = reply.readAll().data().decode("utf-8")
         result = json.loads(response_data)
         if result.get("code") == 200:
-            status = result.get("data", {}).get("status")
+            data = result.get("data", {})
+            status = data.get("status")
+            record_widget.update_status(status, data.get("review_status", ""), data.get("review_message", ""))
             if status == "completed":
                 timer.stop()
-                record_widget.update_status(is_generation_completed=True)
-                record_widget.request_image(result.get("data", {}).get("result_url", ""))
-
+                record_widget.request_image(data.get("result_url", ""))
                 self.show_info("生成完成")
             elif status == "failed":
                 timer.stop()
-                # todo 优化生成失败时RecordWidget组件的显示
-                self.show_error("生成失败")
+                error_msg = result.get("message", {})
+                review_reason = data.get("review_message", "")
+                if review_reason:
+                    error_msg += f"\n审核原因：{review_reason}"
+                self.show_error(error_msg)
         else:
             self.show_error(result.get("message", "轮询生成状态失败"))
             timer.stop()
@@ -340,6 +344,7 @@ class MainWindow(QMainWindow):
         # 当历史记录页面发出添加到收藏夹信号时，更新收藏夹中的对应记录
         record_url = record_dict.get("result_url")
         if not record_url:
+            self.show_error("无法收藏该记录，缺少结果 URL")
             return
 
         selector = FavPathSelector(self.fav_page.get_json_tree(), parent=self)

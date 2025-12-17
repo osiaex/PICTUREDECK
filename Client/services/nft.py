@@ -6,7 +6,9 @@ from services.request_service import async_request
 
 def mint_nft(sender_window, widget):
     task_id = widget.task_id   # 你已经有 task_id
-
+    if not widget.result_url:
+        sender_window.show_error("无效的生成结果，无法铸造 NFT。")
+        return
     # 输入 NFT 名称
     name, ok = QInputDialog.getText(sender_window, "NFT 名称", "请输入 NFT 名称：")
     if not ok or not name.strip():

@@ -1,5 +1,7 @@
 # app/routes/generation_routes.py
 
+import ast
+import json
 import os
 from flask import Blueprint, request, url_for, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -59,15 +61,31 @@ def process_generation_task(generation_id, ref_image_id=None):
         
         # 1. 提取 Code (10000 是成功)
         code = api_response_data.get('code', -1)
-        
-        # 2. 提取 Message
-        # 优先看 data.algorithm_base_resp.status_message (算法层的详细信息)
-        # 其次看外层的 message
-        msg = api_response_data.get('message', 'Unknown Error')
-        if 'data' in api_response_data and isinstance(api_response_data['data'], dict):
-            algo_resp = api_response_data['data'].get('algorithm_base_resp')
-            if algo_resp and 'status_message' in algo_resp:
-                msg = algo_resp['status_message']
+        if code == -1:
+            raw_message = api_response_data.get('message', 'Unknown Error')
+            try:
+                # 第一步：把 "b'...'" 转回 bytes
+                # ast.literal_eval 比 eval 安全
+                bytes_obj = ast.literal_eval(raw_message)
+                # 第二步：bytes -> str -> dict
+                message_dict = json.loads(bytes_obj.decode("utf-8"))
+                code = message_dict.get('code', -1)
+                msg = message_dict.get('message', 'Unknown Error')
+            except Exception:
+                msg = raw_message
+                code = -1
+
+
+
+        else:      
+            # 2. 提取 Message
+            # 优先看 data.algorithm_base_resp.status_message (算法层的详细信息)
+            # 其次看外层的 message
+            msg = api_response_data.get('message', 'Unknown Error')
+            if 'data' in api_response_data and isinstance(api_response_data['data'], dict):
+                algo_resp = api_response_data['data'].get('algorithm_base_resp')
+                if algo_resp and 'status_message' in algo_resp:
+                    msg = algo_resp['status_message']
 
         # 3. 决定 Status
         # 只有当路径存在 且 API code 为 10000 时，才算 approved
@@ -190,10 +208,10 @@ def get_generation_status(taskId):
             
         # 4. 决定返回给前端的 message
         if stored_msg:
-            response_msg = stored_msg
+            response_msg = "内容审核未通过"
         else:
             response_msg = "生成失败，请检查输入"
 
     # --- 核心修改结束 ---
 
-    return api_response(code=response_code, message=response_msg, data=data)
+    return api_response(code=200, message=response_msg, data=data)
