@@ -8,9 +8,9 @@ class Config:
 
     # ⭐️ 新增JWT密钥配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'another-super-secret-key'
-    # 数据库配置
+    # 数据库配置，请根据实际情况填写
     # 格式: mysql+pymysql://<user>:<password>@<host>/<dbname>
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@localhost/aigc'
+    SQLALCHEMY_DATABASE_URI = ''
     
     # 关闭Flask-SQLAlchemy的事件通知系统，节省资源
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -18,9 +18,9 @@ class Config:
     # 可选：打印执行的SQL语句，方便调试
     SQLALCHEMY_ECHO = True
 
-    # 即梦 AI (火山引擎) 的密钥
-    VOLC_ACCESS_KEY_ID = "AKLTZGM1MTMxY2Q5ODg2NDFkMWE3ODI2MGYwODQ2NmUwNDQ"
-    VOLC_SECRET_ACCESS_KEY = "TUdZMk56RTJORFZrT1RNd05ETTVZams0WXpFNVlqUmtaREZrWXpFNU16WQ=="
+    # 即梦 AI (火山引擎) 的密钥，请输入自己的密钥
+    VOLC_ACCESS_KEY_ID = ""
+    VOLC_SECRET_ACCESS_KEY = ""
     # 图片保存的根目录
     OUTPUTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__name__)), 'generated_outputs')
 
@@ -43,10 +43,10 @@ class Config:
     THIRDWEB_NFT_CONTRACT = os.getenv("THIRDWEB_NFT_CONTRACT", "")
 
 
-    # ⭐️⭐️⭐️ 新增邮件配置 (以QQ邮箱为例) ⭐️⭐️⭐️
+    # 邮件服务配置，请根据实际情况填写
     MAIL_SERVER = 'smtp.qq.com'          # QQ邮箱服务器
     MAIL_PORT = 465                      # SSL端口
     MAIL_USE_SSL = True                  # 开启SSL
-    MAIL_USERNAME = '1402175551@qq.com'     # 发送方邮箱
-    MAIL_PASSWORD = 'hukxgvcnjaobghad'       # ⚠️ 注意：这里填SMTP授权码，不是QQ密码！
-    MAIL_DEFAULT_SENDER = '1402175551@qq.com' # 默认发送者
+    MAIL_USERNAME = ''     # 发送方邮箱
+    MAIL_PASSWORD = ''       # ⚠️ 注意：这里填SMTP授权码，不是QQ密码！
+    MAIL_DEFAULT_SENDER = '' # 默认发送者

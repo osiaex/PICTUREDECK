@@ -20,13 +20,18 @@ class MainController:
         self.profile_window = None
         self.forget_password_window = None
         
-        global_signals.unauthorized.connect(self.show_login)
+        self.is_unauthorized = False
+        global_signals.unauthorized.connect(self.__on_unauthorized_signal)
         if session.is_logged_in():
             self.show_main()
         else:
             self.show_login()
 
     # ------------------------- 窗口切换功能 -------------------------
+
+    def __on_unauthorized_signal(self):
+        self.is_unauthorized = True
+        self.show_login()
 
     def show_login(self):
         if self.register_window:
@@ -41,6 +46,9 @@ class MainController:
             switch_to_main=self.show_main,
             switch_to_forgot_password_window = self.show_forget_password_window
         )
+        if self.is_unauthorized:
+            self.login_window.show_error("会话已过期，请重新登录。")
+            self.is_unauthorized = False
         self.login_window.show()
 
     def success_register_callback(self):

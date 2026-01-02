@@ -11,9 +11,12 @@ def mint_nft(sender_window, widget):
         return
     # 输入 NFT 名称
     name, ok = QInputDialog.getText(sender_window, "NFT 名称", "请输入 NFT 名称：")
-    if not ok or not name.strip():
+    if not ok:
         return
 
+    if not name.strip():
+        sender_window.show_error("NFT 名称不能为空。")
+        return
     # 输入 NFT 描述（多行）
     description, ok = QInputDialog.getMultiLineText(
         sender_window, "NFT 描述", "请输入描述："
@@ -21,6 +24,10 @@ def mint_nft(sender_window, widget):
     if not ok:
         return
 
+    if not description.strip():
+        sender_window.show_error("NFT 描述不能为空。")
+        return
+    
     # 构造请求体
     data = {
         "name": name.strip(),
@@ -45,7 +52,14 @@ def mint_nft(sender_window, widget):
                 timer.stop()
                 widget.nft_token_id = result.get("data", {}).get("token_id", "")
                 widget.update_status(is_chain_pending=False, is_on_chain=True)
-                sender_window.show_info("NFT 上链成功！")
+                message = """
+                NFT 铸造成功！<br>
+                请在浏览器查看更多：<br>
+                <a href="https://thirdweb.com/sepolia/0xcD7B1852A152DCC1199840aC59Fb9fcb5E9bDcA1">
+                https://thirdweb.com/sepolia/0xcD7B1852A152DCC1199840aC59Fb9fcb5E9bDcA1
+                </a>
+                """
+                sender_window.show_info(message)
 
             elif status == "failed":
                 timer.stop()
@@ -85,7 +99,10 @@ def transfer_nft(sender_window, widget):
         sender_window.show_error("无效的 NFT Token ID，无法转让。")
         return
     to_address, ok = QInputDialog.getText(sender_window, "转让 NFT", "请输入接收方地址：")
-    if not ok or not to_address.strip():
+    if not ok:
+        return
+    if not to_address.strip():
+        sender_window.show_error("接收方地址不能为空。")
         return
     data = {
         "token_id": token_id,
@@ -108,7 +125,15 @@ def transfer_nft(sender_window, widget):
             if status == "transferred":
                 timer.stop()
                 widget.update_status(is_transfer_pending=False, is_transferred=True)
-                sender_window.show_info("NFT 转让成功！")
+                message = """
+                NFT 转让成功！<br>
+                请在浏览器中查看更多：<br>
+                <a href="https://thirdweb.com/sepolia/0xcD7B1852A152DCC1199840aC59Fb9fcb5E9bDcA1">
+                https://thirdweb.com/sepolia/0xcD7B1852A152DCC1199840aC59Fb9fcb5E9bDcA1
+                </a>
+                """
+
+                sender_window.show_info(message)
             elif status == "failed":
                 timer.stop()
                 sender_window.show_error("NFT 转让失败！")

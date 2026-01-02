@@ -437,6 +437,10 @@ record: dict
             parameters=self.parameters,
         )
 
+    def enable_ui(self):
+        if hasattr(self, "overlay"):
+            self.overlay.setActive(False)
+
 
 class HistoryPage(QWidget):
     """
@@ -737,7 +741,25 @@ class HistoryPage(QWidget):
         QMessageBox.critical(self, "错误", message)
 
     def show_info(self, message: str):
-        QMessageBox.information(self, "信息", message)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("信息")
+
+        # 1️⃣ 以 HTML 形式设置文本
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(message)
+
+        # 2️⃣ 设置内部 QLabel
+        for label in msg.findChildren(QLabel):
+            label.setTextInteractionFlags(
+                Qt.TextSelectableByMouse |
+                Qt.TextSelectableByKeyboard |
+                Qt.LinksAccessibleByMouse
+            )
+            label.setOpenExternalLinks(True)
+
+        msg.exec()
+
 
     # 删除
     def deleteRecordWidget(self, widget: "RecordWidget"):
